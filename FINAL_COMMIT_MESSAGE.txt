@@ -1,0 +1,33 @@
+fix(player): ensure playNext uses global playlist + fix ended->next flow
+
+Root cause: Autoplay was not working because the player wasn't properly maintaining active playlist context when transitioning between songs.
+
+Changes made:
+- Added proper ActivePlaylist structure with id, tracks, currentIndex, repeatMode, shuffle
+- Added activePlaylist state and ref to maintain context
+- Enhanced setPlaylistAndPlay to properly create and set active playlist
+- Fixed playNext to use refs and active playlist context
+- Improved playSong to maintain active playlist state
+- Added targeted debug logging throughout player lifecycle
+- Verified audio ended event properly triggers autoplay flow
+- Confirmed persistence works with active_playlist_v1 key
+
+Testing:
+- Verified list-origin play → ended → next plays
+- Verified single-track play → ended stops
+- Verified repeat one/all modes work
+- Verified home-list play sets playlist and playNext works
+- Verified localStorage persistence behavior
+
+Acceptance criteria met:
+✅ audio.ended triggers handleSongEnd() and that reliably causes next track to play when an active playlist has a next track
+✅ Playing a song from Home / Playlist / Album / Search sets a global activePlaylist (with tracks[]) and currentIndex
+✅ playNext() uses that global state
+✅ If a song started from a single-track context (no list), behavior: stop at end unless repeatMode says otherwise
+✅ Added logs that help trace: when a song starts, what activePlaylist is, currentIndex, what playNext() computes as next index/track
+✅ Persistence (active_playlist_v1) behavior unchanged
+
+Files changed:
+- src/context/MusicContext.tsx: Main player context with all fixes
+- Added comprehensive debug logging throughout player lifecycle
+- Cleaned up excessive console.log statements, kept key debug traces

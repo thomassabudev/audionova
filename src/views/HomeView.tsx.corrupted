@@ -1,0 +1,880 @@
+  // Function to generate sample songs for fallback
+  const getSampleSongs = (): Song[] => {
+    return [
+      {
+        id: '1',
+        name: 'Kannur Kalli',
+        album: {
+          id: 'album1',
+          name: 'Kumbakonam Gopals',
+          url: ''
+        },
+        year: '2020',
+        releaseDate: '2020-05-15',
+        duration: 240,
+        label: 'Kumbakonam Gopals',
+        primaryArtists: 'Kumbakonam Gopals',
+        primaryArtistsId: 'artist1',
+        featuredArtists: '',
+        featuredArtistsId: '',
+        explicitContent: false,
+        playCount: 1500000,
+        language: 'Malayalam',
+        hasLyrics: true,
+        url: '',
+        copyright: '',
+        image: [
+          {
+            quality: '500x500',
+            link: 'https://placehold.co/500x500/ff6b6b/white?text=Kannur+Kalli'
+          }
+        ],
+        downloadUrl: [
+          {
+            quality: '320kbps',
+            link: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3'
+          }
+        ]
+      },
+      {
+        id: '2',
+        name: 'Mukkathe Penne',
+        album: {
+          id: 'album2',
+          name: 'Mukkathe Penne',
+          url: ''
+        },
+        year: '2017',
+        releaseDate: '2017-03-20',
+        duration: 265,
+        label: 'Think Music',
+        primaryArtists: 'Vijay Yesudas',
+        primaryArtistsId: 'artist2',
+        featuredArtists: 'Shruti Haasan',
+        featuredArtistsId: 'artist3',
+        explicitContent: false,
+        playCount: 2200000,
+        language: 'Malayalam',
+        hasLyrics: true,
+        url: '',
+        copyright: '',
+        image: [
+          {
+            quality: '500x500',
+            link: 'https://placehold.co/500x500/4ecdc4/white?text=Mukkathe+Penne'
+          }
+        ],
+        downloadUrl: [
+          {
+            quality: '320kbps',
+            link: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3'
+          }
+        ]
+      },
+      {
+        id: '3',
+        name: 'Nee Marikkatha',
+        album: {
+          id: 'album3',
+          name: 'Nee Marikkatha',
+          url: ''
+        },
+        year: '2019',
+        releaseDate: '2019-08-10',
+        duration: 210,
+        label: 'Muzik247',
+        primaryArtists: 'Vineeth Sreenivasan',
+        primaryArtistsId: 'artist4',
+        featuredArtists: '',
+        featuredArtistsId: '',
+        explicitContent: false,
+        playCount: 1800000,
+        language: 'Malayalam',
+        hasLyrics: true,
+        url: '',
+        copyright: '',
+        image: [
+          {
+            quality: '500x500',
+            link: 'https://placehold.co/500x500/45b7d1/white?text=Nee+Marikkatha'
+          }
+        ],
+        downloadUrl: [
+          {
+            quality: '320kbps',
+            link: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3'
+          }
+        ]
+      },
+      {
+        id: '4',
+        name: 'Aarodum Parayathe',
+        album: {
+          id: 'album4',
+          name: 'Aarodum Parayathe',
+          url: ''
+        },
+        year: '2021',
+        releaseDate: '2021-11-05',
+        duration: 195,
+        label: 'Anto Joseph Film Company',
+        primaryArtists: 'Vijay Yesudas',
+        primaryArtistsId: 'artist5',
+        featuredArtists: '',
+        featuredArtistsId: '',
+        explicitContent: false,
+        playCount: 1200000,
+        language: 'Malayalam',
+        hasLyrics: true,
+        url: '',
+        copyright: '',
+        image: [
+          {
+            quality: '500x500',
+            link: 'https://placehold.co/500x500/f9ca24/000000?text=Aarodum+Parayathe'
+          }
+        ],
+        downloadUrl: [
+          {
+            quality: '320kbps',
+            link: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3'
+          }
+        ]
+      },
+      {
+        id: '5',
+        name: 'Manjappara',
+        album: {
+          id: 'album5',
+          name: 'Manjappara',
+          url: ''
+        },
+        year: '2018',
+        releaseDate: '2018-07-12',
+        duration: 230,
+        label: 'Muzik247',
+        primaryArtists: 'Vineeth Sreenivasan',
+        primaryArtistsId: 'artist6',
+        featuredArtists: '',
+        featuredArtistsId: '',
+        explicitContent: false,
+        playCount: 1600000,
+        language: 'Malayalam',
+        hasLyrics: true,
+        url: '',
+        copyright: '',
+        image: [
+          {
+            quality: '500x500',
+            link: 'https://placehold.co/500x500/6c5ce7/white?text=Manjappara'
+          }
+        ],
+        downloadUrl: [
+          {
+            quality: '320kbps',
+            link: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3'
+          }
+        ]
+      },
+      {
+        id: '6',
+        name: 'Etho Njan',
+        album: {
+          id: 'album6',
+          name: 'Etho Njan',
+          url: ''
+        },
+        year: '2020',
+        releaseDate: '2020-09-18',
+        duration: 225,
+        label: 'Think Music',
+        primaryArtists: 'Vijay Yesudas',
+        primaryArtistsId: 'artist7',
+        featuredArtists: '',
+        featuredArtistsId: '',
+        explicitContent: false,
+        playCount: 1400000,
+        language: 'Malayalam',
+        hasLyrics: true,
+        url: '',
+        copyright: '',
+        image: [
+          {
+            quality: '500x500',
+            link: 'https://placehold.co/500x500/a55eea/white?text=Etho+Njan'
+          }
+        ],
+        downloadUrl: [
+          {
+            quality: '320kbps',
+            link: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3'
+          }
+        ]
+      },
+      {
+        id: '7',
+        name: 'Katha Pallikkoodam',
+        album: {
+          id: 'album7',
+          name: 'Katha Pallikkoodam',
+          url: ''
+        },
+        year: '2019',
+        releaseDate: '2019-05-20',
+        duration: 215,
+        label: 'Muzik247',
+        primaryArtists: 'Vineeth Sreenivasan',
+        primaryArtistsId: 'artist8',
+        featuredArtists: '',
+        featuredArtistsId: '',
+        explicitContent: false,
+        playCount: 1300000,
+        language: 'Malayalam',
+        hasLyrics: true,
+        url: '',
+        copyright: '',
+        image: [
+          {
+            quality: '500x500',
+            link: 'https://placehold.co/500x500/ff9ff3/000000?text=Katha+Pallikkoodam'
+          }
+        ],
+        downloadUrl: [
+          {
+            quality: '320kbps',
+            link: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3'
+          }
+        ]
+      },
+      {
+        id: '8',
+        name: 'Vathikkalu Vellaripravu',
+        album: {
+          id: 'album8',
+          name: 'Vathikkalu Vellaripravu',
+          url: ''
+        },
+        year: '2018',
+        releaseDate: '2018-12-15',
+        duration: 235,
+        label: 'Anto Joseph Film Company',
+        primaryArtists: 'Vijay Yesudas',
+        primaryArtistsId: 'artist9',
+        featuredArtists: '',
+        featuredArtistsId: '',
+        explicitContent: false,
+        playCount: 1700000,
+        language: 'Malayalam',
+        hasLyrics: true,
+        url: '',
+        copyright: '',
+        image: [
+          {
+            quality: '500x500',
+            link: 'https://placehold.co/500x500/54a0ff/000000?text=Vathikkalu+Vellaripravu'
+          }
+        ],
+        downloadUrl: [
+          {
+            quality: '320kbps',
+            link: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3'
+          }
+        ]
+      },
+      {
+        id: '9',
+        name: 'Nira',
+        album: {
+          id: 'album9',
+          name: 'Nira',
+          url: ''
+        },
+        year: '2020',
+        releaseDate: '2020-03-10',
+        duration: 200,
+        label: 'Think Music',
+        primaryArtists: 'Sid Sriram',
+        primaryArtistsId: 'artist10',
+        featuredArtists: '',
+        featuredArtistsId: '',
+        explicitContent: false,
+        playCount: 1900000,
+        language: 'Malayalam',
+        hasLyrics: true,
+        url: '',
+        copyright: '',
+        image: [
+          {
+            quality: '500x500',
+            link: 'https://placehold.co/500x500/5f27cd/white?text=Nira'
+          }
+        ],
+        downloadUrl: [
+          {
+            quality: '320kbps',
+            link: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3'
+          }
+        ]
+      },
+      {
+        id: '10',
+        name: 'Mukkathe Penne (Reprise)',
+        album: {
+          id: 'album10',
+          name: 'Mukkathe Penne',
+          url: ''
+        },
+        year: '2017',
+        releaseDate: '2017-03-20',
+        duration: 180,
+        label: 'Think Music',
+        primaryArtists: 'Vijay Yesudas',
+        primaryArtistsId: 'artist2',
+        featuredArtists: '',
+        featuredArtistsId: '',
+        explicitContent: false,
+        playCount: 1100000,
+        language: 'Malayalam',
+        hasLyrics: true,
+        url: '',
+        copyright: '',
+        image: [
+          {
+            quality: '500x500',
+            link: 'https://placehold.co/500x500/00d2d3/000000?text=Mukkathe+Penne+Reprise'
+          }
+        ],
+        downloadUrl: [
+          {
+            quality: '320kbps',
+            link: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-10.mp3'
+          }
+        ]
+      },
+      {
+        id: '11',
+        name: 'Aaraadhya',
+        album: {
+          id: 'album11',
+          name: 'Aaraadhya',
+          url: ''
+        },
+        year: '2021',
+        releaseDate: '2021-01-15',
+        duration: 220,
+        label: 'Muzik247',
+        primaryArtists: 'Vineeth Sreenivasan',
+        primaryArtistsId: 'artist4',
+        featuredArtists: '',
+        featuredArtistsId: '',
+        explicitContent: false,
+        playCount: 1250000,
+        language: 'Malayalam',
+        hasLyrics: true,
+        url: '',
+        copyright: '',
+        image: [
+          {
+            quality: '500x500',
+            link: 'https://placehold.co/500x500/ff9f43/000000?text=Aaraadhya'
+          }
+        ],
+        downloadUrl: [
+          {
+            quality: '320kbps',
+            link: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-11.mp3'
+          }
+        ]
+      },
+      {
+        id: '12',
+        name: 'Poovalla',
+        album: {
+          id: 'album12',
+          name: 'Poovalla',
+          url: ''
+        },
+        year: '2019',
+        releaseDate: '2019-08-30',
+        duration: 190,
+        label: 'Anto Joseph Film Company',
+        primaryArtists: 'Vijay Yesudas',
+        primaryArtistsId: 'artist5',
+        featuredArtists: '',
+        featuredArtistsId: '',
+        explicitContent: false,
+        playCount: 1550000,
+        language: 'Malayalam',
+        hasLyrics: true,
+        url: '',
+        copyright: '',
+        image: [
+          {
+            quality: '500x500',
+            link: 'https://placehold.co/500x500/10ac84/white?text=Poovalla'
+          }
+        ],
+        downloadUrl: [
+          {
+            quality: '320kbps',
+            link: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-12.mp3'
+          }
+        ]
+      },
+      {
+        id: '13',
+        name: 'Kannadi Koodum',
+        album: {
+          id: 'album13',
+          name: 'Kannadi Koodum',
+          url: ''
+        },
+        year: '2020',
+        releaseDate: '2020-11-05',
+        duration: 210,
+        label: 'Think Music',
+        primaryArtists: 'Sid Sriram',
+        primaryArtistsId: 'artist10',
+        featuredArtists: '',
+        featuredArtistsId: '',
+        explicitContent: false,
+        playCount: 1350000,
+        language: 'Malayalam',
+        hasLyrics: true,
+        url: '',
+        copyright: '',
+        image: [
+          {
+            quality: '500x500',
+            link: 'https://placehold.co/500x500/ee5a24/white?text=Kannadi+Koodum'
+          }
+        ],
+        downloadUrl: [
+          {
+            quality: '320kbps',
+            link: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-13.mp3'
+          }
+        ]
+      },
+      {
+        id: '14',
+        name: 'Parayuvaan',
+        album: {
+          id: 'album14',
+          name: 'Parayuvaan',
+          url: ''
+        },
+        year: '2018',
+        releaseDate: '2018-04-20',
+        duration: 245,
+        label: 'Kumbakonam Gopals',
+        primaryArtists: 'Kumbakonam Gopals',
+        primaryArtistsId: 'artist1',
+        featuredArtists: '',
+        featuredArtistsId: '',
+        explicitContent: false,
+        playCount: 1450000,
+        language: 'Malayalam',
+        hasLyrics: true,
+        url: '',
+        copyright: '',
+        image: [
+          {
+            quality: '500x500',
+            link: 'https://placehold.co/500x500/009432/white?text=Parayuvaan'
+          }
+        ],
+        downloadUrl: [
+          {
+            quality: '320kbps',
+            link: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-14.mp3'
+          }
+        ]
+      },
+      {
+        id: '15',
+        name: 'Nenjukkulle',
+        album: {
+          id: 'album15',
+          name: 'Nenjukkulle',
+          url: ''
+        },
+        year: '2019',
+        releaseDate: '2019-02-14',
+        duration: 200,
+        label: 'Muzik247',
+        primaryArtists: 'Vineeth Sreenivasan',
+        primaryArtistsId: 'artist4',
+        featuredArtists: '',
+        featuredArtistsId: '',
+        explicitContent: false,
+        playCount: 1650000,
+        language: 'Malayalam',
+        hasLyrics: true,
+        url: '',
+        copyright: '',
+        image: [
+          {
+            quality: '500x500',
+            link: 'https://placehold.co/500x500/8e44ad/white?text=Nenjukkulle'
+          }
+        ],
+        downloadUrl: [
+          {
+            quality: '320kbps',
+            link: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-15.mp3'
+          }
+        ]
+      },
+      {
+        id: '16',
+        name: 'Kannuneeru',
+        album: {
+          id: 'album16',
+          name: 'Kannuneeru',
+          url: ''
+        },
+        year: '2021',
+        releaseDate: '2021-06-10',
+        duration: 195,
+        label: 'Anto Joseph Film Company',
+        primaryArtists: 'Vijay Yesudas',
+        primaryArtistsId: 'artist9',
+        featuredArtists: '',
+        featuredArtistsId: '',
+        explicitContent: false,
+        playCount: 1250000,
+        language: 'Malayalam',
+        hasLyrics: true,
+        url: '',
+        copyright: '',
+        image: [
+          {
+            quality: '500x500',
+            link: 'https://placehold.co/500x500/0652DD/white?text=Kannuneeru'
+          }
+        ],
+        downloadUrl: [
+          {
+            quality: '320kbps',
+            link: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-16.mp3'
+          }
+        ]
+      },
+      {
+        id: '17',
+        name: 'Thirakkatha',
+        album: {
+          id: 'album17',
+          name: 'Thirakkatha',
+          url: ''
+        },
+        year: '2017',
+        releaseDate: '2017-10-05',
+        duration: 225,
+        label: 'Think Music',
+        primaryArtists: 'Sid Sriram',
+        primaryArtistsId: 'artist10',
+        featuredArtists: '',
+        featuredArtistsId: '',
+        explicitContent: false,
+        playCount: 1550000,
+        language: 'Malayalam',
+        hasLyrics: true,
+        url: '',
+        copyright: '',
+        image: [
+          {
+            quality: '500x500',
+            link: 'https://placehold.co/500x500/9980FA/000000?text=Thirakkatha'
+          }
+        ],
+        downloadUrl: [
+          {
+            quality: '320kbps',
+            link: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-17.mp3'
+          }
+        ]
+      },
+      {
+        id: '18',
+        name: 'Mazhakeey',
+        album: {
+          id: 'album18',
+          name: 'Mazhakeey',
+          url: ''
+        },
+        year: '2020',
+        releaseDate: '2020-07-22',
+        duration: 210,
+        label: 'Muzik247',
+        primaryArtists: 'Vineeth Sreenivasan',
+        primaryArtistsId: 'artist6',
+        featuredArtists: '',
+        featuredArtistsId: '',
+        explicitContent: false,
+        playCount: 1350000,
+        language: 'Malayalam',
+        hasLyrics: true,
+        url: '',
+        copyright: '',
+        image: [
+          {
+            quality: '500x500',
+            link: 'https://placehold.co/500x500/F79F1F/000000?text=Mazhakeey'
+          }
+        ],
+        downloadUrl: [
+          {
+            quality: '320kbps',
+            link: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-18.mp3'
+          }
+        ]
+      },
+      {
+        id: '19',
+        name: 'Koode',
+        album: {
+          id: 'album19',
+          name: 'Koode',
+          url: ''
+        },
+        year: '2018',
+        releaseDate: '2018-09-15',
+        duration: 230,
+        label: 'Anto Joseph Film Company',
+        primaryArtists: 'Vijay Yesudas',
+        primaryArtistsId: 'artist5',
+        featuredArtists: '',
+        featuredArtistsId: '',
+        explicitContent: false,
+        playCount: 1450000,
+        language: 'Malayalam',
+        hasLyrics: true,
+        url: '',
+        copyright: '',
+        image: [
+          {
+            quality: '500x500',
+            link: 'https://placehold.co/500x500/128807/white?text=Koode'
+          }
+        ],
+        downloadUrl: [
+          {
+            quality: '320kbps',
+            link: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-19.mp3'
+          }
+        ]
+      },
+      {
+        id: '20',
+        name: 'Nee Marikkatha (Acoustic)',
+        album: {
+          id: 'album20',
+          name: 'Nee Marikkatha (Acoustic)',
+          url: ''
+        },
+        year: '2019',
+        releaseDate: '2019-12-01',
+        duration: 200,
+        label: 'Muzik247',
+        primaryArtists: 'Vineeth Sreenivasan',
+        primaryArtistsId: 'artist4',
+        featuredArtists: '',
+        featuredArtistsId: '',
+        explicitContent: false,
+        playCount: 1150000,
+        language: 'Malayalam',
+        hasLyrics: true,
+        url: '',
+        copyright: '',
+        image: [
+          {
+            quality: '500x500',
+            link: 'https://placehold.co/500x500/D980FA/000000?text=Nee+Marikkatha+Acoustic'
+          }
+        ],
+        downloadUrl: [
+          {
+            quality: '320kbps',
+            link: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-20.mp3'
+          }
+        ]
+      },
+      {
+        id: '21',
+        name: 'Kannur Kalli (Remix)',
+        album: {
+          id: 'album21',
+          name: 'Kannur Kalli (Remix)',
+          url: ''
+        },
+        year: '2021',
+        releaseDate: '2021-03-18',
+        duration: 250,
+        label: 'Kumbakonam Gopals',
+        primaryArtists: 'Kumbakonam Gopals',
+        primaryArtistsId: 'artist1',
+        featuredArtists: '',
+        featuredArtistsId: '',
+        explicitContent: false,
+        playCount: 1250000,
+        language: 'Malayalam',
+        hasLyrics: true,
+        url: '',
+        copyright: '',
+        image: [
+          {
+            quality: '500x500',
+            link: 'https://placehold.co/500x500/ED4C67/white?text=Kannur+Kalli+Remix'
+          }
+        ],
+        downloadUrl: [
+          {
+            quality: '320kbps',
+            link: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3'
+          }
+        ]
+      },
+      {
+        id: '22',
+        name: 'Aarodum Parayathe (Extended)',
+        album: {
+          id: 'album22',
+          name: 'Aarodum Parayathe (Extended)',
+          url: ''
+        },
+        year: '2021',
+        releaseDate: '2021-12-25',
+        duration: 270,
+        label: 'Anto Joseph Film Company',
+        primaryArtists: 'Vijay Yesudas',
+        primaryArtistsId: 'artist5',
+        featuredArtists: '',
+        featuredArtistsId: '',
+        explicitContent: false,
+        playCount: 1350000,
+        language: 'Malayalam',
+        hasLyrics: true,
+        url: '',
+        copyright: '',
+        image: [
+          {
+            quality: '500x500',
+            link: 'https://placehold.co/500x500/F79F1F/000000?text=Aarodum+Parayathe+Extended'
+          }
+        ],
+        downloadUrl: [
+          {
+            quality: '320kbps',
+            link: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3'
+          }
+        ]
+      },
+      {
+        id: '23',
+        name: 'Manjappara (Live)',
+        album: {
+          id: 'album23',
+          name: 'Manjappara (Live)',
+          url: ''
+        },
+        year: '2019',
+        releaseDate: '2019-08-15',
+        duration: 240,
+        label: 'Muzik247',
+        primaryArtists: 'Vineeth Sreenivasan',
+        primaryArtistsId: 'artist6',
+        featuredArtists: '',
+        featuredArtistsId: '',
+        explicitContent: false,
+        playCount: 1450000,
+        language: 'Malayalam',
+        hasLyrics: true,
+        url: '',
+        copyright: '',
+        image: [
+          {
+            quality: '500x500',
+            link: 'https://placehold.co/500x500/128807/white?text=Manjappara+Live'
+          }
+        ],
+        downloadUrl: [
+          {
+            quality: '320kbps',
+            link: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3'
+          }
+        ]
+      },
+      {
+        id: '24',
+        name: 'Etho Njan (Unplugged)',
+        album: {
+          id: 'album24',
+          name: 'Etho Njan (Unplugged)',
+          url: ''
+        },
+        year: '2020',
+        releaseDate: '2020-12-31',
+        duration: 215,
+        label: 'Think Music',
+        primaryArtists: 'Vijay Yesudas',
+        primaryArtistsId: 'artist7',
+        featuredArtists: '',
+        featuredArtistsId: '',
+        explicitContent: false,
+        playCount: 1150000,
+        language: 'Malayalam',
+        hasLyrics: true,
+        url: '',
+        copyright: '',
+        image: [
+          {
+            quality: '500x500',
+            link: 'https://placehold.co/500x500/A3CB38/000000?text=Etho+Njan+Unplugged'
+          }
+        ],
+        downloadUrl: [
+          {
+            quality: '320kbps',
+            link: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3'
+          }
+        ]
+      },
+      {
+        id: '25',
+        name: 'Mukkathe Penne (Orchestral)',
+        album: {
+          id: 'album25',
+          name: 'Mukkathe Penne (Orchestral)',
+          url: ''
+        },
+        year: '2018',
+        releaseDate: '2018-05-01',
+        duration: 280,
+        label: 'Think Music',
+        primaryArtists: 'Vijay Yesudas',
+        primaryArtistsId: 'artist2',
+        featuredArtists: '',
+        featuredArtistsId: '',
+        explicitContent: false,
+        playCount: 1650000,
+        language: 'Malayalam',
+        hasLyrics: true,
+        url: '',
+        copyright: '',
+        image: [
+          {
+            quality: '500x500',
+            link: 'https://placehold.co/500x500/0652DD/white?text=Mukkathe+Penne+Orchestral'
+          }
+        ],
+        downloadUrl: [
+          {
+            quality: '320kbps',
+            link: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3'
+          }
+        ]
+      }
+    ];
+  };
