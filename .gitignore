@@ -142,3 +142,5 @@ local/
 # Cover verification test outputs
 backend/test_*.txt
 backend/test_*.log
+# Developer version backup (not for GitHub)
+README_DEVELOPER_VERSION.md
