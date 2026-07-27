@@ -258,10 +258,10 @@ const HomeView: React.FC = () => {
     // Initial fetch for "For You"
     const timer = setTimeout(() => fetchForYou(), 1500);
 
-    // Auto refresh recommendations every 3 minutes for fresh content rotation
+    // Auto refresh recommendations every 10 minutes for fresh content rotation
     const interval = setInterval(() => {
       fetchForYou();
-    }, 180000);
+    }, 600000);
 
     return () => {
       clearTimeout(timer);
