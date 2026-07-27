@@ -42,64 +42,38 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(currentUser);
       
       if (currentUser) {
-        // Only check admin status for the specific admin email to reduce console noise
-        const isAdminEmail = currentUser.email === 'thomassabu512@gmail.com';
+        const adminEmail = import.meta.env.VITE_ADMIN_EMAIL;
+        const isAdminEmail = adminEmail && currentUser.email === adminEmail;
         
         if (isAdminEmail) {
-          // 🔒 MAXIMUM-SECURITY CLAIM VERIFICATION (UX ONLY)
-          // WARNING: This is ONLY for user interface - ALL security is server-side
+          // Admin verification (silent)
           try {
-            console.log('🔍 Verifying admin status for:', currentUser.email);
+            // Force fresh token to get latest claims
+            await currentUser.getIdToken(true);
             
-            // 🚨 CRITICAL: Force fresh token to get latest claims
-            console.log('🔄 Forcing token refresh...');
-            await currentUser.getIdToken(true); // Force refresh
-            
-            // 🔒 Get fresh token result with server-verified claims
+            // Get fresh token result with server-verified claims
             const tokenResult = await currentUser.getIdTokenResult(true);
-            console.log('🔑 Server-verified claims:', {
-              admin: tokenResult.claims.admin,
-              adminEmail: tokenResult.claims.adminEmail,
-              singleAdmin: tokenResult.claims.singleAdmin,
-              securityLevel: tokenResult.claims.securityLevel
-            });
             
-            // 🛡️ STRICT: Check ONLY server-cryptographically-verified admin claim
+            // Check server-cryptographically-verified admin claim
             const hasAdminClaim = tokenResult.claims.admin === true;
-            const isAuthorizedAdmin = tokenResult.claims.adminEmail === 'thomassabu512@gmail.com';
+            const isAuthorizedAdmin = tokenResult.claims.adminEmail === adminEmail;
             const isSingleAdmin = tokenResult.claims.singleAdmin === true;
             
-            // 🔒 MAXIMUM SECURITY: All conditions must be true
+            // All conditions must be true
             const isMaxSecurityAdmin = hasAdminClaim && isAuthorizedAdmin && isSingleAdmin;
             
-            if (isMaxSecurityAdmin) {
-              console.log('✅ MAXIMUM-SECURITY ADMIN VERIFIED');
-              console.log('   ✅ Admin claim: true');
-              console.log('   ✅ Authorized email: thomassabu512@gmail.com');
-              console.log('   ✅ Single admin: true');
-              console.log('   🛡️  Note: Real security enforced server-side');
-              setIsAdmin(true);
-            } else {
-              console.log('❌ ADMIN VERIFICATION FAILED');
-              console.log('   Admin claim:', hasAdminClaim);
-              console.log('   Authorized email:', isAuthorizedAdmin);
-              console.log('   Single admin:', isSingleAdmin);
-              setIsAdmin(false);
-              
-              // 🔄 Handle claim changes
-              if (isAdmin && !hasAdminClaim) {
-                console.log('⚠️  Admin claim revoked - user lost admin access');
-              }
+            setIsAdmin(isMaxSecurityAdmin);
+            
+            if (!isMaxSecurityAdmin && isAdmin) {
+              // Only log when admin access is lost
+              console.warn('Admin access revoked');
             }
           } catch (error: any) {
-            console.error('❌ Admin verification error:', error);
+            console.error('Admin verification error:', error);
             setIsAdmin(false);
             
-            // 🔄 Handle specific error cases
-            if (error?.code === 'auth/network-request-failed') {
-              console.log('🔄 Network error - admin status will retry automatically');
-            } else if (error?.code === 'auth/user-token-expired') {
-              console.log('🔄 Token expired - forcing re-authentication');
+            // Handle specific error cases
+            if (error?.code === 'auth/user-token-expired') {
               await logout();
             }
           }
@@ -120,18 +94,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Helper function to handle profile picture
   const handleUserProfilePicture = (user: User) => {
     if (user.photoURL) {
-      // Test if the image loads (completely silent)
-      const img = new Image();
-      img.onload = () => {
-        // Dispatch event to update profile picture components
-        window.dispatchEvent(new CustomEvent('profilePictureUpdated', { 
-          detail: { photoURL: user.photoURL } 
-        }));
-      };
-      img.onerror = () => {
-        // Silent failure - no logging
-      };
-      img.src = user.photoURL;
+      // Dispatch event immediately to update profile picture components
+      window.dispatchEvent(new CustomEvent('profilePictureUpdated', { 
+        detail: { photoURL: user.photoURL } 
+      }));
     }
   };
 
@@ -147,7 +113,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           const message = args.join(' ');
           if (message.includes('Cross-Origin-Opener-Policy') ||
               message.includes('window.closed') ||
-              message.includes('window.close')) {
+              message.includes('window.close') ||
+              message.includes('policy would block') ||
+              message.includes('firebase_auth.js')) {
             return; // Completely suppress CORS errors
           }
           return originalError.apply(console, args);
@@ -157,7 +125,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           const message = args.join(' ');
           if (message.includes('Cross-Origin-Opener-Policy') ||
               message.includes('window.closed') ||
-              message.includes('window.close')) {
+              message.includes('window.close') ||
+              message.includes('policy would block') ||
+              message.includes('firebase_auth.js')) {
             return; // Completely suppress CORS warnings
           }
           return originalWarn.apply(console, args);
@@ -170,9 +140,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const { originalError, originalWarn } = suppressCORSErrors();
       
       try {
+        // Use signInWithPopup but with better error handling
         const result = await signInWithPopup(auth, googleProvider);
         const user = result.user;
         handleUserProfilePicture(user);
+      } catch (popupError: any) {
+        // If popup fails due to CORS, the error is suppressed
+        // but we still need to handle actual auth failures
+        if (popupError?.code === 'auth/popup-closed-by-user') {
+          throw new Error('Sign-in was cancelled');
+        } else if (popupError?.code === 'auth/popup-blocked') {
+          throw new Error('Popup was blocked by browser. Please allow popups and try again.');
+        } else if (!popupError?.message?.includes('Cross-Origin-Opener-Policy')) {
+          throw popupError;
+        }
+        // If it's a CORS error, we ignore it as the auth might still succeed
       } finally {
         // Always restore console methods
         console.error = originalError;
@@ -184,7 +166,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (error?.code && 
           !error.message?.includes('Cross-Origin-Opener-Policy') &&
           !error.message?.includes('window.closed') &&
-          !error.message?.includes('window.close')) {
+          !error.message?.includes('window.close') &&
+          !error.message?.includes('policy would block') &&
+          !error.message?.includes('firebase_auth.js')) {
         console.error('Google sign-in error:', error);
       }
       throw error;
@@ -239,14 +223,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // 🚨 CRITICAL: Always get fresh token for admin operations
         const token = await auth.currentUser.getIdToken(forceRefresh);
         
-        // 🔍 Verify token has required claims for admin operations
         if (forceRefresh) {
-          const tokenResult = await auth.currentUser.getIdTokenResult(true);
-          console.log('🔑 Fresh token obtained with claims:', {
-            admin: tokenResult.claims.admin,
-            email: tokenResult.claims.email,
-            exp: new Date(tokenResult.expirationTime)
-          });
+          await auth.currentUser.getIdTokenResult(true);
         }
         
         return token;

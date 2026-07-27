@@ -1,14 +1,15 @@
-// src/lib/visualizer.ts
+import { getOrCreateSharedAudioSource } from '../utils/audioContextManager';
+
 type Registration = { 
   id: number, 
   canvas: HTMLCanvasElement, 
-  drawFn: (data: Uint8Array) => void 
+  drawFn: (data: Uint8Array<ArrayBuffer>) => void 
 };
 
 export class VisualizerManager {
   private audioCtx: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
-  private buffer: Uint8Array | null = null;
+  private buffer: Uint8Array<ArrayBuffer> | null = null;
   private registrations: Map<number, Registration> = new Map();
   private rafId = 0;
   private nextId = 1;
@@ -16,33 +17,22 @@ export class VisualizerManager {
   private audioElement: HTMLAudioElement | null = null;
 
   async ensureAnalyser(audioEl: HTMLAudioElement | null) {
-    if (this.analyser || !audioEl) return;
-    
-    const AudioContext = (window as any).AudioContext || (window as any).webkitAudioContext;
-    if (!AudioContext) {
-      throw new Error('AudioContext not supported');
-    }
+    if (!audioEl) return;
+    if (this.analyser && this.audioElement === audioEl) return;
     
     try {
-      this.audioCtx = new AudioContext();
-      if (this.audioCtx && audioEl) {
-        // Ensure crossOrigin is set for CORS compatibility
-        if (audioEl.crossOrigin !== 'anonymous') {
-          console.warn('[Visualizer] Audio element crossOrigin not set to anonymous, visualizer may not work');
-        }
-        
-        const source = this.audioCtx.createMediaElementSource(audioEl);
-        const analyser = this.audioCtx.createAnalyser();
-        analyser.fftSize = 256;
-        source.connect(analyser);
-        analyser.connect(this.audioCtx.destination);
-        this.analyser = analyser;
-        this.buffer = new Uint8Array(analyser.frequencyBinCount);
-        this.audioElement = audioEl;
-      }
-    } catch (e) {
-      console.warn('[Visualizer] Failed to create audio analyser (CORS issue?):', e);
-      throw e;
+      const shared = getOrCreateSharedAudioSource(audioEl);
+      if (!shared) return;
+      
+      this.audioCtx = shared.context;
+      const analyser = this.audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      shared.source.connect(analyser);
+      this.analyser = analyser;
+      this.buffer = new Uint8Array(analyser.frequencyBinCount);
+      this.audioElement = audioEl;
+    } catch {
+      // Silent fallback
     }
   }
 
@@ -51,7 +41,7 @@ export class VisualizerManager {
     
     const id = this.nextId++;
     
-    const drawFn = (data: Uint8Array) => {
+    const drawFn = (data: Uint8Array<ArrayBuffer>) => {
       if (!canvas) return;
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
@@ -172,16 +162,10 @@ export class VisualizerManager {
   // Clean up resources
   destroy() {
     this.stop();
-    
-    if (this.audioCtx) {
-      this.audioCtx.close().catch(e => {
-        console.warn('Error closing audio context:', e);
-      });
-      this.audioCtx = null;
-    }
-    
+    this.audioCtx = null;
     this.analyser = null;
     this.buffer = null;
+    this.audioElement = null;
     this.registrations.clear();
   }
 }

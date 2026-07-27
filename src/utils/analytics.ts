@@ -10,7 +10,8 @@ interface AnalyticsEvent {
 class Analytics {
   track(eventName: string, properties?: AnalyticsEvent): void {
     // In production, integrate with your analytics provider (GA, Mixpanel, etc.)
-    if (import.meta.env.DEV) {
+    // Only log in development for debugging
+    if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_ANALYTICS) {
       console.log('[Analytics]', eventName, properties);
     }
 

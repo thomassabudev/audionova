@@ -15,7 +15,9 @@ try {
   
   // Test the connection
   pool.query('SELECT 1')
-    .then(() => console.log('Database connected successfully'))
+    .then(() => {
+      // Database connected successfully - removed verbose logging
+    })
     .catch(err => {
       console.warn('Database connection failed, using in-memory storage:', err.message);
       pool = null;
@@ -158,114 +160,107 @@ let inMemorySongs = [
 // Function to fetch real new releases from JioSaavn API
 async function fetchRealNewReleases() {
   try {
-    const API_BASE_URL = 'https://jiosaavn-api-privatecvc2.vercel.app';
-    
-    // Fetch trending songs for each language using better queries - INCLUDING ENGLISH
-    const [malayalamResponse, tamilResponse, hindiResponse, englishResponse] = await Promise.all([
-      axios.get(`${API_BASE_URL}/search/songs`, { params: { query: 'new malayalam songs 2025', limit: 30 } }),
-      axios.get(`${API_BASE_URL}/search/songs`, { params: { query: 'new tamil songs 2025', limit: 30 } }),
-      // Use better queries for Hindi songs to avoid religious songs
-      axios.get(`${API_BASE_URL}/search/songs`, { params: { query: 'bollywood songs 2025', limit: 30 } }),
-      // Add English songs for 2025
-      axios.get(`${API_BASE_URL}/search/songs`, { params: { query: 'english songs 2025', limit: 30 } })
-    ]);
-    
-    // Process Malayalam songs
-    const malayalamSongs = (malayalamResponse.data.data.results || []).map(song => ({
-      ...song,
-      language: 'ml' // Explicitly set language
-    }));
-    
-    // Process Tamil songs
-    const tamilSongs = (tamilResponse.data.data.results || []).map(song => ({
-      ...song,
-      language: 'ta' // Explicitly set language
-    }));
-    
-    // Process Hindi songs
-    const hindiSongs = (hindiResponse.data.data.results || []).map(song => ({
-      ...song,
-      language: 'hi' // Explicitly set language
-    }));
-    
-    // Process English songs
-    const englishSongs = (englishResponse.data.data.results || []).map(song => ({
-      ...song,
-      language: 'en' // Explicitly set language
-    }));
-    
-    // Combine and process songs
-    const allSongs = [...malayalamSongs, ...tamilSongs, ...hindiSongs, ...englishSongs];
-    
-    // Convert to our internal format
-    const processedSongs = allSongs.map((song, index) => ({
-      id: `${index + 1}`,
-      external_id: song.id,
-      title: song.name,
-      artists: song.primaryArtists,
-      album: song.album.name,
-      release_date: song.releaseDate || new Date().toISOString(),
-      featured: true,
-      language: song.language, // Use the explicitly set language
-      added_at: new Date().toISOString(),
-      metadata: JSON.stringify({
-        image: song.image || [],
-        downloadUrl: song.downloadUrl || []
-      })
-    }));
-    
-    // Remove duplicates by external_id
-    const uniqueSongs = processedSongs.filter((song, index, self) => 
-      index === self.findIndex(s => s.external_id === song.external_id)
-    );
-    
-    // Filter only 2025 songs or very recent songs (last 14 days)
-    const now = Date.now();
-    const recentDays = 14;
-    const targetYear = 2025;
-    
-    const filteredSongs = uniqueSongs.filter(song => {
-      // Check releaseDate first
-      if (song.release_date) {
-        const parsed = Date.parse(song.release_date);
-        if (!isNaN(parsed)) {
-          const diffDays = (now - parsed) / (1000 * 60 * 60 * 24);
-          // Very recent (within 14 days)
-          if (diffDays >= 0 && diffDays <= recentDays) return true;
-          // Year is 2025
-          const relYear = new Date(parsed).getFullYear();
-          if (relYear === targetYear) return true;
-          return false;
-        }
+    const JIOSAAVN_API = 'https://www.jiosaavn.com/api.php';
+    const HEADERS = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      Accept: 'application/json, text/plain, */*',
+      Referer: 'https://www.jiosaavn.com/',
+      Origin: 'https://www.jiosaavn.com',
+    };
+    const COMP_KW = ['best of', 'top songs', 'top hits', 'collection', 'greatest hits', 'hits of', 'playlist'];
+    const isComp = (title = '') => { const t = title.toLowerCase(); return COMP_KW.some(k => t.includes(k)); };
+
+    const year = new Date().getFullYear();
+
+    // Upgrade image from 150x150 → 500x500
+    const upgradeImg = url => url ? url.replace('150x150', '500x500').replace('50x50', '500x500') : url;
+
+    // Normalize a raw JioSaavn song object
+    const normSong = raw => {
+      if (!raw || raw.type !== 'song') return null;
+      const info = raw.more_info || {};
+      const artists = info.artistMap || {};
+      const primaryArtists = (artists.primary_artists || []).map(a => a.name).join(', ');
+      const encUrl = info.encrypted_media_url;
+      let downloadUrl = [];
+      if (encUrl) {
+        try {
+          const CryptoJS = require('crypto-js');
+          const key = CryptoJS.enc.Utf8.parse('38346591');
+          const base = CryptoJS.DES.decrypt(
+            { ciphertext: CryptoJS.enc.Base64.parse(encUrl) }, key,
+            { mode: CryptoJS.mode.ECB, padding: CryptoJS.pad.Pkcs7 }
+          ).toString(CryptoJS.enc.Utf8).trim();
+          if (base && base.startsWith('http')) {
+            downloadUrl = ['12','48','96','160','320'].map(q => ({
+              quality: `${q}kbps`,
+              link: `/api/jiosaavn/stream?url=${encodeURIComponent(base.replace(/_\d+\.mp4/, `_${q}.mp4`))}`,
+            }));
+          }
+        } catch {}
       }
-      // Fallback: check year field
-      return false; // Only include songs with valid release dates
-    });
-    
-    // Ensure we have a good mix of languages
-    const mlSongs = filteredSongs.filter(song => song.language === 'ml');
-    const taSongs = filteredSongs.filter(song => song.language === 'ta');
-    const hiSongs = filteredSongs.filter(song => song.language === 'hi');
-    const enSongs = filteredSongs.filter(song => song.language === 'en');
-    
-    // Take up to 15 songs from each language to ensure good distribution
-    const mixedSongs = [
-      ...mlSongs.slice(0, 15),
-      ...taSongs.slice(0, 15),
-      ...hiSongs.slice(0, 15),
-      ...enSongs.slice(0, 15)
-    ];
-    
-    // Shuffle the mixed songs to randomize the order
-    for (let i = mixedSongs.length - 1; i > 0; i--) {
+      const baseImg = raw.image || '';
+      return {
+        id: raw.id,
+        name: raw.title,
+        album: { id: info.album_id || '', name: info.album || '', url: info.album_url || '' },
+        year: raw.year || '',
+        releaseDate: info.release_date || '',
+        duration: parseInt(info.duration, 10) || 0,
+        primaryArtists,
+        language: raw.language || '',
+        playCount: parseInt(raw.play_count, 10) || 0,
+        hasLyrics: info.has_lyrics === 'true' || info.has_lyrics === true,
+        image: [
+          { quality: '50x50',   link: baseImg },
+          { quality: '150x150', link: baseImg },
+          { quality: '500x500', link: upgradeImg(baseImg) },
+        ].filter(i => i.link),
+        downloadUrl,
+      };
+    };
+
+    // Fetch recent albums for a language, return their songs
+    const fetchLangSongs = async (language, maxAlbums = 8) => {
+      const albumRes = await axios.get(JIOSAAVN_API, {
+        params: { __call: 'search.getAlbumResults', _format: 'json', _marker: 0, api_version: 4, ctx: 'web6dot0', q: `${language} ${year}`, n: 25, p: 1 },
+        headers: HEADERS, timeout: 10000,
+      });
+      const albums = (albumRes.data.results || []).filter(a => !isComp(a.title)).slice(0, maxAlbums);
+      const results = await Promise.allSettled(
+        albums.map(a =>
+          axios.get(JIOSAAVN_API, {
+            params: { __call: 'content.getAlbumDetails', albumid: a.id, _format: 'json', _marker: 0, api_version: 4, ctx: 'web6dot0' },
+            headers: HEADERS, timeout: 8000,
+          }).then(r => (r.data.songs || r.data.list || []).map(normSong).filter(Boolean))
+        )
+      );
+      return results.filter(r => r.status === 'fulfilled').flatMap(r => r.value);
+    };
+
+    // Fetch for all 4 languages in parallel
+    const [mlSongs, taSongs, hiSongs, enSongs] = await Promise.all([
+      fetchLangSongs('malayalam', 8).catch(() => []),
+      fetchLangSongs('tamil',     8).catch(() => []),
+      fetchLangSongs('hindi',     6).catch(() => []),
+      fetchLangSongs('english',   4).catch(() => []),
+    ]);
+
+    // Deduplicate by song id and shuffle for variety
+    const allSongs = [...mlSongs, ...taSongs, ...hiSongs, ...enSongs];
+    const seen = new Set();
+    const unique = allSongs.filter(s => { if (seen.has(s.id)) return false; seen.add(s.id); return true; });
+
+    // Shuffle
+    for (let i = unique.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [mixedSongs[i], mixedSongs[j]] = [mixedSongs[j], mixedSongs[i]];
+      [unique[i], unique[j]] = [unique[j], unique[i]];
     }
-    
-    return mixedSongs.slice(0, 50); // Return top 50 songs
+
+    return unique.slice(0, 60);
   } catch (error) {
-    console.error('Error fetching real new releases:', error);
-    return inMemorySongs; // Fallback to sample data
+    console.error('Error fetching real new releases:', error.message);
+    return inMemorySongs;
   }
 }
 
@@ -280,7 +275,7 @@ try {
   
   redisSubscriber.connect()
     .then(() => {
-      console.log('Redis connected successfully');
+      // Redis connected successfully - removed verbose logging
       redisConnected = true;
     })
     .catch((err) => {

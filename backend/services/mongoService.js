@@ -210,8 +210,8 @@ class MongoService {
         songTitle: event.data?.songTitle,
         artist: event.data?.artist,
         duration: event.data?.duration,
-        timestamp: event.timestamp,
-        date: event.timestamp.toISOString().split('T')[0]
+        timestamp: event.timestamp || new Date(),
+        date: (event.timestamp ? new Date(event.timestamp) : new Date()).toISOString().split('T')[0]
       }));
     } catch (error) {
       console.error('Error getting play history:', error.message);

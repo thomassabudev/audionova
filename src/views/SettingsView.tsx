@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { 
   User,
@@ -13,65 +13,111 @@ import {
 } from 'lucide-react';
 import { useSettings } from '@/context/SettingsContext';
 import { useAuth } from '@/context/AuthContext';
+import { API_ENDPOINTS } from '@/config/api';
 import { useGoogleProfilePicture } from '@/hooks/useGoogleProfilePicture';
 import toast from 'react-hot-toast';
 
 const SettingsView = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { settings, updateSettings } = useSettings();
-  const { user, logout } = useAuth();
+  const { user, logout, getAuthToken } = useAuth();
   const [activeSection, setActiveSection] = useState('account');
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [displayName, setDisplayName] = useState(() => {
+    return localStorage.getItem('userDisplayName') || user?.displayName || 'User';
+  });
   const { profilePicture, updateProfilePicture } = useGoogleProfilePicture();
+
+  // Handle uploading profile picture to Cloudinary / Backend
+  const handleProfilePictureUpload = async (file: File) => {
+    if (!file) return;
+
+    setUploadingPhoto(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+
+      const token = await getAuthToken();
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`${API_ENDPOINTS.BASE_URL}/api/sync/profile-picture`, {
+        method: 'POST',
+        headers,
+        body: formData
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.profilePicture) {
+        let fullUrl = data.profilePicture;
+        if (fullUrl.startsWith('/uploads')) {
+          fullUrl = `${API_ENDPOINTS.BASE_URL}${fullUrl}`;
+        }
+        updateProfilePicture(fullUrl);
+        toast.success('Profile picture updated!');
+      } else {
+        // Local fallback (base64)
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          if (reader.result) {
+            updateProfilePicture(reader.result as string);
+            toast.success('Profile picture updated!');
+          }
+        };
+        reader.readAsDataURL(file);
+      }
+    } catch (error) {
+      console.error('Profile picture upload failed:', error);
+      // Fallback to local base64 preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (reader.result) {
+          updateProfilePicture(reader.result as string);
+          toast.success('Profile picture updated locally!');
+        }
+      };
+      reader.readAsDataURL(file);
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  // Auto-select tab based on URL path (/settings/playback, /settings/appearance, etc.)
+  useEffect(() => {
+    const path = location.pathname.toLowerCase();
+    if (path.includes('playback')) {
+      setActiveSection('playback');
+    } else if (path.includes('appearance') || path.includes('display')) {
+      setActiveSection('display');
+    } else if (path.includes('about')) {
+      setActiveSection('about');
+    } else if (path.includes('account')) {
+      setActiveSection('account');
+    }
+  }, [location.pathname]);
+
+  const handleSaveDisplayName = () => {
+    if (!displayName.trim()) {
+      toast.error('Display name cannot be empty');
+      return;
+    }
+    localStorage.setItem('userDisplayName', displayName.trim());
+    setIsEditingName(false);
+    toast.success('Display name updated successfully!');
+  };
 
   const handleLogout = async () => {
     try {
       await logout();
-      navigate('/login');
+      navigate('/landing');
     } catch (error) {
       console.error('Logout failed:', error);
-    }
-  };
-
-  const handleProfilePictureUpload = async (file: File) => {
-    if (!user) {
-      toast.error('You must be logged in to upload a profile picture');
-      return;
-    }
-
-    setUploadingPhoto(true);
-    
-    try {
-      // Convert image to base64 data URL for local storage
-      const reader = new FileReader();
-      
-      reader.onloadend = async () => {
-        try {
-          const photoURL = reader.result as string;
-          
-          // Only use the hook's update function (localStorage)
-          // Don't update Firebase Auth profile with base64 data as it's too long
-          updateProfilePicture(photoURL);
-          
-          toast.success('Profile picture updated!');
-        } catch (error) {
-          console.error('Profile update failed:', error);
-          toast.error('Failed to update profile picture');
-        } finally {
-          setUploadingPhoto(false);
-        }
-      };
-      
-      reader.onerror = () => {
-        toast.error('Failed to read file');
-        setUploadingPhoto(false);
-      };
-      
-      reader.readAsDataURL(file);
-    } catch (error) {
-      console.error('Profile picture upload failed:', error);
-      toast.error('Failed to upload profile picture. Please try again.');
-      setUploadingPhoto(false);
     }
   };
 
@@ -169,13 +215,34 @@ const SettingsView = () => {
 
                 {/* Display Name */}
                 <div className="flex items-center justify-between py-3 border-b border-border">
-                  <div>
+                  <div className="flex-1 pr-4">
                     <p className="font-medium">Display Name</p>
-                    <p className="text-sm text-muted-foreground">{user?.displayName || 'User'}</p>
+                    {isEditingName ? (
+                      <div className="flex items-center gap-2 mt-2">
+                        <input
+                          type="text"
+                          value={displayName}
+                          onChange={(e) => setDisplayName(e.target.value)}
+                          className="px-3 py-1.5 bg-background border border-border rounded-md text-sm outline-none focus:ring-2 focus:ring-red-500"
+                          placeholder="Enter display name"
+                          autoFocus
+                        />
+                        <Button size="sm" onClick={handleSaveDisplayName} className="bg-red-500 hover:bg-red-600 text-white">
+                          Save
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => setIsEditingName(false)}>
+                          Cancel
+                        </Button>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">{displayName}</p>
+                    )}
                   </div>
-                  <Button variant="ghost" size="sm">
-                    Edit
-                  </Button>
+                  {!isEditingName && (
+                    <Button variant="ghost" size="sm" onClick={() => setIsEditingName(true)}>
+                      Edit
+                    </Button>
+                  )}
                 </div>
 
                 {/* Log Out */}

@@ -161,6 +161,18 @@ const TrendingSongsSection: React.FC<TrendingSongsSectionProps> = ({
 
   const displayedSongs = showAll ? songs : songs.slice(0, initialShowCount);
 
+const LoadingGrid = ({ count = 6 }: { count?: number }) => (
+  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+    {Array.from({ length: count }).map((_, i) => (
+      <div key={`trending-skeleton-${i}`} className="animate-pulse space-y-3">
+        <div className="aspect-square bg-muted rounded-xl" />
+        <div className="h-4 bg-muted rounded w-3/4" />
+        <div className="h-3 bg-muted rounded w-1/2" />
+      </div>
+    ))}
+  </div>
+);
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -179,10 +191,11 @@ const TrendingSongsSection: React.FC<TrendingSongsSectionProps> = ({
             variant="ghost"
             size="icon"
             onClick={handleRefresh}
-            disabled={refreshing}
+            disabled={refreshing || loading}
             className="text-red-500 hover:text-red-600 hover:bg-red-50"
+            title="Refresh Trending Now"
           >
-            {refreshing ? (
+            {refreshing || loading ? (
               <motion.div
                 className="w-4 h-4 border-2 border-red-500/30 border-l-red-500 rounded-full"
                 animate={{ rotate: 360 }}
@@ -202,49 +215,53 @@ const TrendingSongsSection: React.FC<TrendingSongsSectionProps> = ({
         </div>
       </div>
 
-      {/* Songs Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-        <AnimatePresence mode="popLayout">
-          {displayedSongs.map((song, index) => {
-            const delta = formatDelta(song.delta);
-            
-            return (
-              <motion.div
-                key={song.id}
-                layout
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ duration: 0.3 }}
-                className="relative"
-              >
-                {/* Delta Badge - Top Right */}
-                {delta.text !== '—' && (
-                  <div className={`absolute top-2 right-2 z-20 px-2 py-1 rounded-full text-xs font-bold ${delta.color} bg-black/60 backdrop-blur-sm`}>
-                    {delta.icon} {delta.text}
-                  </div>
-                )}
+      {/* Songs Grid or Skeleton Loading */}
+      {loading || refreshing ? (
+        <LoadingGrid count={showAll ? 12 : initialShowCount} />
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+          <AnimatePresence mode="popLayout">
+            {displayedSongs.map((song, index) => {
+              const delta = formatDelta(song.delta);
+              
+              return (
+                <motion.div
+                  key={song.id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  transition={{ duration: 0.3 }}
+                  className="relative isolate"
+                >
+                  {/* Delta Badge - Top Right */}
+                  {delta.text !== '—' && (
+                    <div className={`absolute top-2 right-2 z-10 px-2 py-1 rounded-full text-xs font-bold ${delta.color} bg-black/60 backdrop-blur-sm pointer-events-none`}>
+                      {delta.icon} {delta.text}
+                    </div>
+                  )}
 
-                {/* Smart Badges - Below Image */}
-                {song.badges.length > 0 && (
-                  <div className="absolute bottom-16 left-2 right-2 z-20 flex items-center gap-1 flex-wrap">
-                    {song.badges.slice(0, 2).map(badge => renderBadge(badge))}
-                  </div>
-                )}
+                  {/* Smart Badges - Overlaying bottom of image */}
+                  {song.badges.length > 0 && (
+                    <div className="absolute bottom-[4.5rem] left-2 right-2 z-10 flex items-center gap-1 flex-wrap pointer-events-none">
+                      {song.badges.slice(0, 2).map(badge => renderBadge(badge))}
+                    </div>
+                  )}
 
-                {/* Use Standard SongCard */}
-                <SongCard
-                  song={song}
-                  playlist={convertSongsForPlayer(songs)}
-                  index={index}
-                  showNewBadge={false}
-                  showLanguageBadge={false}
-                />
-              </motion.div>
-            );
-          })}
-        </AnimatePresence>
-      </div>
+                  {/* Use Standard SongCard */}
+                  <SongCard
+                    song={song}
+                    playlist={convertSongsForPlayer(songs)}
+                    index={index}
+                    showNewBadge={false}
+                    showLanguageBadge={false}
+                  />
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
+        </div>
+      )}
     </div>
   );
 };

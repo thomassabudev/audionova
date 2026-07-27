@@ -43,12 +43,15 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 import { useMusic } from '@/context/MusicContext';
+import PlayingEqualizerBadge from './PlayingEqualizerBadge';
 // Import the JioSaavn Song type with an alias to avoid conflicts
 import type { Song as JioSaavnSong } from '@/services/jiosaavnApi';
 import { getHighestQualityImage } from '@/services/jiosaavnApi';
 import { Slider } from '@/components/ui/slider';
 import PlaylistEditor from './PlaylistEditor';
+import SharePlaylistModal from './SharePlaylistModal';
 import LyricsViewer from './LyricsViewer'; // Add this import
 import { 
   DndContext, 
@@ -108,21 +111,36 @@ const convertJioSaavnSongToMusicContextSong = (jioSaavnSong: JioSaavnSong): any 
   let imageUrl = '';
   
   if (typeof jioSaavnSong.image === 'string') {
-    // If image is already a string (normalized), use it directly
     imageUrl = jioSaavnSong.image;
   } else if (jioSaavnSong.image && Array.isArray(jioSaavnSong.image) && jioSaavnSong.image.length > 0) {
-    // If image is an array, get highest quality
     imageUrl = getHighestQualityImage(jioSaavnSong.image);
+  }
+
+  // Prefer direct audio stream from downloadUrl over webpage links
+  let streamUrl = '';
+  if (jioSaavnSong.downloadUrl) {
+    if (Array.isArray(jioSaavnSong.downloadUrl) && jioSaavnSong.downloadUrl.length > 0) {
+      const highest = jioSaavnSong.downloadUrl[jioSaavnSong.downloadUrl.length - 1] || jioSaavnSong.downloadUrl[0];
+      if (highest?.link) streamUrl = highest.link;
+    } else if (typeof jioSaavnSong.downloadUrl === 'string' && (jioSaavnSong.downloadUrl as string).trim()) {
+      streamUrl = jioSaavnSong.downloadUrl;
+    }
+  }
+
+  // Fallback to url if not a spotify webpage link
+  if (!streamUrl && jioSaavnSong.url && !jioSaavnSong.url.includes('spotify.com') && !jioSaavnSong.url.includes('spotify:')) {
+    streamUrl = jioSaavnSong.url;
   }
   
   return {
     id: jioSaavnSong.id,
     name: jioSaavnSong.name,
     primaryArtists: jioSaavnSong.primaryArtists,
-    image: imageUrl || '', // Keep as string, not array
+    image: imageUrl || '',
     duration: jioSaavnSong.duration,
-    url: jioSaavnSong.url,
-    album: jioSaavnSong.album?.name || jioSaavnSong.album,
+    url: streamUrl,
+    downloadUrl: jioSaavnSong.downloadUrl,
+    album: typeof jioSaavnSong.album === 'string' ? jioSaavnSong.album : (jioSaavnSong.album?.name || ''),
     year: jioSaavnSong.year,
     language: jioSaavnSong.language,
     playCount: jioSaavnSong.playCount,
@@ -162,16 +180,8 @@ const QueueItem = ({
       onClick={() => onPlaySong(song)}
     >
       <div className="text-sm text-muted-foreground w-6 flex items-center justify-center">
-        {isCurrent && isPlaying ? (
-          <canvas 
-            ref={canvasRef} 
-            className="mini-visual" 
-            width="48" 
-            height="18" 
-            aria-hidden 
-          />
-        ) : isCurrent ? (
-          <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+        {isCurrent ? (
+          <PlayingEqualizerBadge size="sm" />
         ) : (
           index + 1
         )}
@@ -222,7 +232,7 @@ const SongItem = React.memo(({
   
   return (
     <motion.div 
-      className={`grid grid-cols-12 gap-4 px-4 py-3 hover:bg-accent/50 transition-colors group ${
+      className={`grid grid-cols-12 gap-2 md:gap-4 px-3 md:px-4 py-3 hover:bg-accent/50 transition-colors group ${
         isCurrent ? 'bg-red-500/10 border-l-4 border-red-500' : ''
       }`}
       onClick={() => onPlaySong(song)}
@@ -233,21 +243,11 @@ const SongItem = React.memo(({
       whileHover={{ scale: 1.01 }}
       whileTap={{ scale: 0.99 }}
     >
-      <div className="col-span-1 flex items-center">
-        {isCurrent && isPlaying ? (
-          <canvas 
-            ref={canvasRef} 
-            className="mini-visualizer" 
-            width="48" 
-            height="18" 
-            aria-hidden 
-          />
-        ) : isCurrent ? (
-          <div className="w-4 h-4 flex items-center justify-center">
-            <div className="w-3 h-3 bg-red-500 rounded-sm animate-pulse"></div>
-          </div>
+      <div className="col-span-1 flex items-center min-w-0">
+        {isCurrent ? (
+          <PlayingEqualizerBadge size="sm" />
         ) : (
-          <span className="text-muted-foreground group-hover:hidden">{displayIndex}</span>
+          <span className="text-muted-foreground text-xs md:text-sm group-hover:hidden">{displayIndex}</span>
         )}
         <button 
           className={`hidden group-hover:block ${isCurrent ? 'text-red-500' : ''}`}
@@ -261,50 +261,48 @@ const SongItem = React.memo(({
         </button>
       </div>
       
-      <div className="col-span-5 flex items-center gap-3">
+      <div className="col-span-9 md:col-span-5 flex items-center gap-2.5 min-w-0">
         {songImage && (
           <img 
             src={songImage} 
             alt={song.name} 
-            className="w-10 h-10 rounded object-cover"
+            className="w-10 h-10 rounded object-cover flex-shrink-0"
             crossOrigin="anonymous"
           />
         )}
-        <div>
-          <p className={`font-medium ${isCurrent ? 'text-red-500' : 'text-foreground'}`}>
+        <div className="min-w-0 flex-1">
+          <p className={`font-medium text-xs md:text-sm truncate ${isCurrent ? 'text-red-500 font-semibold' : 'text-foreground'}`}>
             {song.name}
           </p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-[11px] md:text-xs text-muted-foreground truncate">
             {song.primaryArtists}
           </p>
         </div>
       </div>
       
-      <div className="col-span-3 flex items-center">
-        <p className="text-muted-foreground text-sm">{song.album?.name || song.album || 'Unknown Album'}</p>
+      <div className="hidden md:flex col-span-3 items-center min-w-0">
+        <p className="text-muted-foreground text-sm truncate">{song.album?.name || song.album || 'Unknown Album'}</p>
       </div>
       
-      <div className="col-span-2 flex items-center">
-        <p className="text-muted-foreground text-sm">
+      <div className="hidden md:flex col-span-2 items-center min-w-0">
+        <p className="text-muted-foreground text-sm truncate">
           {song.year || new Date().getFullYear()}
         </p>
       </div>
       
-      <div className="col-span-1 flex items-center justify-end gap-2">
+      <div className="col-span-2 md:col-span-1 flex items-center justify-end gap-1.5 min-w-0">
         <button 
           onClick={(e) => onLikeToggle(song, e)}
-          className="opacity-0 group-hover:opacity-100 transition-opacity"
+          className="p-1 rounded-full hover:bg-accent text-muted-foreground hover:text-red-500 transition-colors"
           aria-label={isSongLiked(song.id) ? "Unlike song" : "Like song"}
         >
           <Heart 
-            className={`w-4 h-4 ${
-              isSongLiked(song.id) 
-                ? 'text-red-500 fill-current' 
-                : 'text-muted-foreground hover:text-foreground'
+            className={`w-3.5 h-3.5 md:w-4 md:h-4 ${
+              isSongLiked(song.id) ? 'fill-red-500 text-red-500' : ''
             }`} 
           />
         </button>
-        <span className="text-muted-foreground text-sm">
+        <span className="text-[10px] md:text-xs font-mono text-muted-foreground">
           {song.duration ? formatDuration(Number(song.duration)) : '0:00'}
         </span>
         <button 
@@ -352,6 +350,9 @@ const EnhancedFullscreenPlaylistView: React.FC<EnhancedFullscreenPlaylistViewPro
     setPlaylistAndPlay, // Add the new method
     repeatMode, // Add missing variable
     setRepeatMode, // Add missing variable
+    isShuffle,
+    setIsShuffle,
+    toggleShuffle,
     playNext, // Add missing variable
     playPrevious, // Add missing variable
     audioRef
@@ -377,6 +378,7 @@ const EnhancedFullscreenPlaylistView: React.FC<EnhancedFullscreenPlaylistViewPro
   const [swipeOffset, setSwipeOffset] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
@@ -401,16 +403,6 @@ const EnhancedFullscreenPlaylistView: React.FC<EnhancedFullscreenPlaylistViewPro
 
   // Reset autoplay state when component unmounts
   useEffect(() => {
-    // Send analytics event
-    console.log('playlist_open', { playlistId: playlist.id, playlistName: playlist.name });
-    
-    // Preload first track
-    if (playlist.tracks.length > 0) {
-      const firstTrack = playlist.tracks[0];
-      // In a real app, you would preload the audio here
-      console.log('Preloading first track:', firstTrack.name);
-    }
-    
     // Set loading state to false after a short delay to show skeleton
     const timer = setTimeout(() => {
       setIsLoading(false);
@@ -589,19 +581,21 @@ const EnhancedFullscreenPlaylistView: React.FC<EnhancedFullscreenPlaylistViewPro
 
   // Helper function to convert JioSaavn Song to MusicContext Song
   const convertJioSaavnSongToMusicContextSong = (jioSaavnSong: any): any => {
-    console.log('[EnhancedPlaylist] Converting JioSaavn song:', jioSaavnSong);
+    // Removed verbose logging for cleaner console
     
     // Extract the highest quality image link
-    const imageUrl = jioSaavnSong.image && jioSaavnSong.image.length > 0 
-      ? getHighestQualityImage(jioSaavnSong.image) 
-      : '';
+    const imageUrl = typeof jioSaavnSong.image === 'string'
+      ? jioSaavnSong.image
+      : (jioSaavnSong.image && Array.isArray(jioSaavnSong.image) && jioSaavnSong.image.length > 0
+          ? getHighestQualityImage(convertImageArray(jioSaavnSong.image))
+          : '');
     
     // Get the best quality download URL
     let audioUrl = '';
     
     // Check if downloadUrl exists and is an array
     if (jioSaavnSong.downloadUrl && Array.isArray(jioSaavnSong.downloadUrl) && jioSaavnSong.downloadUrl.length > 0) {
-      console.log('[EnhancedPlaylist] Found downloadUrl array:', jioSaavnSong.downloadUrl);
+      // Removed verbose logging for cleaner console
       // Sort by quality and get the highest quality URL
       const sortedUrls = [...jioSaavnSong.downloadUrl].sort((a, b) => {
         const qualityA = parseInt(a.quality || '0');
@@ -609,13 +603,13 @@ const EnhancedFullscreenPlaylistView: React.FC<EnhancedFullscreenPlaylistViewPro
         return qualityB - qualityA;
       });
       audioUrl = sortedUrls[0]?.link || '';
-      console.log('[EnhancedPlaylist] Selected audio URL from downloadUrl:', audioUrl);
+      // Removed verbose logging for cleaner console
     }
     
     // Fallback to url property if downloadUrl is not available
     if (!audioUrl && jioSaavnSong.url) {
       audioUrl = jioSaavnSong.url;
-      console.log('[EnhancedPlaylist] Using fallback url property:', audioUrl);
+      // Removed verbose logging for cleaner console
     }
     
     // Log warning if no audio URL found
@@ -645,22 +639,13 @@ const EnhancedFullscreenPlaylistView: React.FC<EnhancedFullscreenPlaylistViewPro
       releaseDate: jioSaavnSong.releaseDate
     };
     
-    console.log('[EnhancedPlaylist] ✅ Converted song:', {
-      name: convertedSong.name,
-      hasUrl: !!convertedSong.url,
-      url: convertedSong.url
-    });
-    
     return convertedSong;
   };
 
   // Play a song from the playlist
   const playSongFromPlaylist = useCallback((song: any) => {
-    console.log('[EnhancedPlaylist] 🎵 Attempting to play song:', song.name);
-    
     // Find the index of the song in the playlist using ref
     const songIndex = playlistRef.current.tracks.findIndex(track => track.id === song.id);
-    console.log('[EnhancedPlaylist] Song index in playlist:', songIndex);
     
     if (songIndex !== -1) {
       // Convert tracks to MusicContext Song format before passing
@@ -668,13 +653,9 @@ const EnhancedFullscreenPlaylistView: React.FC<EnhancedFullscreenPlaylistViewPro
       
       // Check if any songs have valid URLs
       const songsWithUrls = convertedTracks.filter(t => t.url && t.url.trim() !== '');
-      console.log(`[EnhancedPlaylist] Songs with URLs: ${songsWithUrls.length}/${convertedTracks.length}`);
       
       if (songsWithUrls.length === 0) {
-        console.error('[EnhancedPlaylist] ⚠️ NO SONGS HAVE AUDIO URLs!');
-        console.error('[EnhancedPlaylist] This is a limitation of the JioSaavn API being used.');
-        console.error('[EnhancedPlaylist] The API does not provide direct audio streaming URLs.');
-        alert('Audio playback is not available. The music API does not provide streaming URLs. Please check the console for more details.');
+        alert('Audio playback is not available for these songs.');
         return;
       }
         
@@ -688,12 +669,6 @@ const EnhancedFullscreenPlaylistView: React.FC<EnhancedFullscreenPlaylistViewPro
       const convertedSong = convertJioSaavnSongToMusicContextSong(song);
       playSong(convertedSong);
     }
-    // Send analytics event
-    console.log('[EnhancedPlaylist] playlist_play', { 
-      playlistId: playlistRef.current.id, 
-      songId: song.id, 
-      songName: song.name 
-    });
   }, [setPlaylistAndPlay, setQueue, playSong]);
 
   // Wrap formatDuration with useCallback
@@ -1038,7 +1013,7 @@ const EnhancedFullscreenPlaylistView: React.FC<EnhancedFullscreenPlaylistViewPro
       </motion.div>
       
       {/* Controls - removed sidebar-specific styling */}
-      <div className="px-6 py-4 flex items-center gap-4 relative z-10">
+      <div className="px-4 md:px-6 py-4 flex items-center gap-3 md:gap-4 relative z-10 overflow-x-auto scrollbar-none max-w-full flex-nowrap">
         <button 
           onClick={() => {
             // If we're already playing a song from this playlist, toggle play/pause
@@ -1051,7 +1026,7 @@ const EnhancedFullscreenPlaylistView: React.FC<EnhancedFullscreenPlaylistViewPro
               playSongFromPlaylist(playlist.tracks[0]);
             }
           }}
-          className="w-14 h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:scale-105 transition-transform shadow-lg hover:bg-emerald-600"
+          className="w-12 h-12 md:w-14 md:h-14 flex-shrink-0 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:scale-105 transition-transform shadow-lg hover:bg-emerald-600"
           aria-label={isPlaying && currentSong && playlist.tracks.some(track => track.id === currentSong.id) ? "Pause" : "Play"}
         >
           {isPlaying && currentSong && playlist.tracks.some(track => track.id === currentSong.id) ? (
@@ -1064,62 +1039,43 @@ const EnhancedFullscreenPlaylistView: React.FC<EnhancedFullscreenPlaylistViewPro
         {/* Shuffle Button */}
         <button
           onClick={() => {
-            if (!isShuffled) {
-              // Save original order and shuffle
+            const nextShuffleState = !isShuffle;
+            setIsShuffle(nextShuffleState);
+            
+            if (nextShuffleState) {
+              // Enable Shuffle: save original order, shuffle tracks & start playback from index 0
               setOriginalPlaylistOrder(playlist.tracks);
-              const shuffled = [...playlist.tracks].sort(() => Math.random() - 0.5);
-              setPlaylist(prev => ({ ...prev, tracks: shuffled }));
+              const shuffledTracks = [...playlist.tracks].sort(() => Math.random() - 0.5);
+              const convertedTracks = shuffledTracks.map(convertJioSaavnSongToMusicContextSong);
+              
+              setPlaylistAndPlay(convertedTracks, 0);
               setIsShuffled(true);
-              
-              // Only update queue if currently playing from this playlist
-              if (currentSong && playlist.tracks.some(track => track.id === currentSong.id)) {
-                const convertedTracks = shuffled.map(convertJioSaavnSongToMusicContextSong);
-                setQueue(convertedTracks);
-              }
-              
-              // Enable autoplay when shuffle is enabled
-              setIsAutoplayEnabled(true);
-              if (repeatMode !== 'all') {
-                setRepeatMode('all');
-              }
-              
-              console.log('playlist_shuffled', { playlistId: playlist.id });
+              toast.success('Shuffling & playing playlist 🔀');
             } else {
-              // Restore original order
-              setPlaylist(prev => ({ ...prev, tracks: originalPlaylistOrder }));
+              // Disable Shuffle: restore original order
+              if (originalPlaylistOrder.length > 0) {
+                setPlaylist(prev => ({ ...prev, tracks: originalPlaylistOrder }));
+              }
               setIsShuffled(false);
-              
-              // Only update queue if currently playing from this playlist
-              if (currentSong && originalPlaylistOrder.some(track => track.id === currentSong.id)) {
-                const convertedTracks = originalPlaylistOrder.map(convertJioSaavnSongToMusicContextSong);
-                setQueue(convertedTracks);
-              }
-              
-              // Disable autoplay when shuffle is disabled
-              setIsAutoplayEnabled(false);
-              if (repeatMode === 'all') {
-                setRepeatMode('none');
-              }
-              
-              console.log('playlist_unshuffled', { playlistId: playlist.id });
+              toast.success('Shuffle disabled ➡️');
             }
           }}
-          className={`px-4 py-2 rounded-full flex items-center gap-2 transition-all ${
-            isShuffled 
-              ? 'bg-green-500 text-white' 
+          className={`px-4 py-2 flex-shrink-0 whitespace-nowrap rounded-full flex items-center gap-2 transition-all ${
+            isShuffle || isShuffled 
+              ? 'bg-red-600 text-white font-semibold shadow-md' 
               : 'bg-card border border-border text-foreground hover:bg-accent'
           }`}
-          aria-label={isShuffled ? "Disable shuffle" : "Enable shuffle"}
+          aria-label={isShuffle || isShuffled ? "Disable shuffle" : "Enable shuffle"}
         >
           <Shuffle className="w-4 h-4" />
           <span className="text-sm font-medium">Shuffle</span>
-          <div className={`w-2 h-2 rounded-full ${isShuffled ? 'bg-white' : 'bg-muted-foreground'}`} />
+          <div className={`w-2 h-2 rounded-full ${isShuffle || isShuffled ? 'bg-white' : 'bg-muted-foreground'}`} />
         </button>
         
         {/* Edit Button - always show in fullscreen mode */}
         <button
           onClick={() => setIsEditorOpen(true)}
-          className="px-4 py-2 rounded-full bg-card border border-border text-foreground hover:bg-accent transition-colors flex items-center gap-2"
+          className="px-4 py-2 flex-shrink-0 whitespace-nowrap rounded-full bg-card border border-border text-foreground hover:bg-accent transition-colors flex items-center gap-2"
           aria-label="Edit playlist"
         >
           <Edit3 className="w-4 h-4" />
@@ -1128,7 +1084,7 @@ const EnhancedFullscreenPlaylistView: React.FC<EnhancedFullscreenPlaylistViewPro
         
         {/* Follow Button */}
         <button
-          className="px-4 py-2 rounded-full bg-card border border-border text-foreground hover:bg-accent transition-colors flex items-center gap-2"
+          className="px-4 py-2 flex-shrink-0 whitespace-nowrap rounded-full bg-card border border-border text-foreground hover:bg-accent transition-colors flex items-center gap-2"
           onClick={() => {
             console.log('playlist_follow', { playlistId: playlist.id, playlistName: playlist.name });
           }}
@@ -1140,7 +1096,7 @@ const EnhancedFullscreenPlaylistView: React.FC<EnhancedFullscreenPlaylistViewPro
         
         {/* Download Button */}
         <button
-          className="p-2 rounded-full bg-card border border-border text-foreground hover:bg-accent transition-colors"
+          className="p-2 flex-shrink-0 rounded-full bg-card border border-border text-foreground hover:bg-accent transition-colors"
           aria-label="Download playlist"
         >
           <Download className="w-5 h-5" />
@@ -1148,7 +1104,8 @@ const EnhancedFullscreenPlaylistView: React.FC<EnhancedFullscreenPlaylistViewPro
         
         {/* Share Button */}
         <button
-          className="p-2 rounded-full bg-card border border-border text-foreground hover:bg-accent transition-colors"
+          onClick={() => setIsShareModalOpen(true)}
+          className="p-2 flex-shrink-0 rounded-full bg-card border border-border text-foreground hover:bg-accent transition-colors"
           aria-label="Share playlist"
         >
           <Share2 className="w-5 h-5" />
@@ -1158,7 +1115,7 @@ const EnhancedFullscreenPlaylistView: React.FC<EnhancedFullscreenPlaylistViewPro
         {currentSong && (
           <button
             onClick={toggleQueueWithScrollCheck}
-            className="p-2 rounded-full bg-card border border-border text-foreground hover:bg-accent transition-colors"
+            className="p-2 flex-shrink-0 rounded-full bg-card border border-border text-foreground hover:bg-accent transition-colors"
             aria-label={isQueueOpen ? "Close queue" : "Open queue"}
           >
             <ListMusic className="w-5 h-5" />
@@ -1169,7 +1126,7 @@ const EnhancedFullscreenPlaylistView: React.FC<EnhancedFullscreenPlaylistViewPro
         {currentSong && (
           <button
             onClick={() => setIsMiniPlayerOpen(!isMiniPlayerOpen)}
-            className="p-2 rounded-full bg-card border border-border text-foreground hover:bg-accent transition-colors"
+            className="p-2 flex-shrink-0 rounded-full bg-card border border-border text-foreground hover:bg-accent transition-colors"
             aria-label={isMiniPlayerOpen ? "Minimize player" : "Expand player"}
           >
             {isMiniPlayerOpen ? (
@@ -1180,22 +1137,22 @@ const EnhancedFullscreenPlaylistView: React.FC<EnhancedFullscreenPlaylistViewPro
           </button>
         )}
 
-{/* Lyrics Toggle Button */}
-{currentSong && (
-  <button
-    onClick={() => setIsLyricsOpen(!isLyricsOpen)}
-    className={`p-2 rounded-full bg-card border border-border text-foreground hover:bg-accent transition-colors ${
-      isLyricsOpen ? 'bg-primary text-primary-foreground' : ''
-    }`}
-    aria-label={isLyricsOpen ? "Close lyrics" : "Show lyrics"}
-  >
-    <Music className="w-5 h-5" />
-  </button>
-)}
-</div>
+        {/* Lyrics Toggle Button */}
+        {currentSong && (
+          <button
+            onClick={() => setIsLyricsOpen(!isLyricsOpen)}
+            className={`p-2 flex-shrink-0 rounded-full bg-card border border-border text-foreground hover:bg-accent transition-colors ${
+              isLyricsOpen ? 'bg-primary text-primary-foreground' : ''
+            }`}
+            aria-label={isLyricsOpen ? "Close lyrics" : "Show lyrics"}
+          >
+            <Music className="w-5 h-5" />
+          </button>
+        )}
+      </div>
       
       {/* Search Bar */}
-      <div className="px-6 py-2 border-b border-border relative z-10">
+      <div className="px-4 md:px-6 py-2 border-b border-border relative z-10">
         <div className="relative max-w-md">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
           <input
@@ -1203,7 +1160,7 @@ const EnhancedFullscreenPlaylistView: React.FC<EnhancedFullscreenPlaylistViewPro
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search in playlist"
-            className="w-full pl-10 pr-4 py-2 bg-card border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            className="w-full pl-10 pr-4 py-2 bg-card border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
             aria-label="Search in playlist"
           />
         </div>
@@ -1212,7 +1169,7 @@ const EnhancedFullscreenPlaylistView: React.FC<EnhancedFullscreenPlaylistViewPro
       {/* Songs List */}
       <div 
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto px-6 pb-32 scrollbar-thin scrollbar-thumb-rounded-full scrollbar-track-transparent scrollbar-thumb-red-500/30"
+        className="flex-1 overflow-y-auto px-3 md:px-6 pb-32 scrollbar-thin scrollbar-thumb-rounded-full scrollbar-track-transparent scrollbar-thumb-red-500/30"
         style={{
           overscrollBehavior: 'contain',
           overscrollBehaviorY: 'contain',
@@ -1231,12 +1188,12 @@ const EnhancedFullscreenPlaylistView: React.FC<EnhancedFullscreenPlaylistViewPro
       >
         <div className="bg-background rounded-lg overflow-hidden border border-border mt-4 min-h-full">
           {/* Table Header */}
-          <div className="grid grid-cols-12 gap-4 px-4 py-3 border-b border-border text-muted-foreground text-sm font-medium sticky top-0 bg-card/90 backdrop-blur z-10">
+          <div className="grid grid-cols-12 gap-2 md:gap-4 px-3 md:px-4 py-3 border-b border-border text-muted-foreground text-xs md:text-sm font-medium sticky top-0 bg-card/90 backdrop-blur z-10">
             <div className="col-span-1">#</div>
-            <div className="col-span-5">Title</div>
-            <div className="col-span-3">Album</div>
-            <div className="col-span-2">Date Added</div>
-            <div className="col-span-1 flex justify-end">
+            <div className="col-span-9 md:col-span-5">Title</div>
+            <div className="hidden md:flex col-span-3 items-center">Album</div>
+            <div className="hidden md:flex col-span-2 items-center">Date Added</div>
+            <div className="col-span-2 md:col-span-1 flex justify-end items-center">
               <Clock className="w-4 h-4" />
             </div>
           </div>
@@ -1272,7 +1229,12 @@ const EnhancedFullscreenPlaylistView: React.FC<EnhancedFullscreenPlaylistViewPro
                   
                   const displayIndex = originalIndex !== -1 ? originalIndex + 1 : mapIndex + 1;
                   
-                  const isCurrent = currentSong?.id === song.id;
+                  const isCurrent = Boolean(
+                    currentSong && (
+                      (currentSong.id && song.id && String(currentSong.id) === String(song.id)) ||
+                      (currentSong.name && song.name && currentSong.name.toLowerCase().trim() === song.name.toLowerCase().trim())
+                    )
+                  );
                   const songImage = getSongImage(song);
                   
                   // Use a unique key combining playlist ID, map index, and song ID
@@ -1335,31 +1297,7 @@ const EnhancedFullscreenPlaylistView: React.FC<EnhancedFullscreenPlaylistViewPro
               </div>
               <div className="flex-1 overflow-hidden">
                 <LyricsViewer 
-                  currentSong={currentSong ? {
-                    id: currentSong.id,
-                    name: currentSong.name,
-                    primaryArtists: currentSong.primaryArtists,
-                    image: currentSong.image || '',
-                    duration: currentSong.duration,
-                    url: currentSong.url,
-                    album: {
-                      id: '',
-                      name: currentSong.album || '',
-                      url: ''
-                    },
-                    year: currentSong.year || '',
-                    releaseDate: currentSong.releaseDate || '',
-                    label: '',
-                    primaryArtistsId: '',
-                    featuredArtists: '',
-                    featuredArtistsId: '',
-                    explicitContent: false,
-                    playCount: currentSong.playCount || 0,
-                    language: currentSong.language || '',
-                    hasLyrics: false,
-                    copyright: '',
-                    downloadUrl: []
-                  } as any : null}
+                  currentSong={currentSong as any}
                   currentTime={currentTime}
                   isPlaying={isPlaying}
                   onReportLyrics={() => console.log('Report lyrics clicked')}
@@ -1446,6 +1384,13 @@ const EnhancedFullscreenPlaylistView: React.FC<EnhancedFullscreenPlaylistViewPro
             version: (prev.version || 0) + 1
           }));
         }}
+      />
+
+      {/* Share Playlist Modal */}
+      <SharePlaylistModal
+        playlist={playlist}
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
       />
     </div>
   );

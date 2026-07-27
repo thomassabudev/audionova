@@ -16,8 +16,7 @@ const userSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: true,
-    minlength: 6
+    required: false
   },
   firebaseUid: {
     type: String,
@@ -49,6 +48,8 @@ const userSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Playlist'
   }],
+  likedSongsData: [mongoose.Schema.Types.Mixed],
+  savedPlaylists: [mongoose.Schema.Types.Mixed],
   likedSongs: [{
     songId: String,
     addedAt: {
@@ -66,7 +67,13 @@ const userSchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true
-  }
+  },
+  isBlocked: {
+    type: Boolean,
+    default: false
+  },
+  blockedAt: Date,
+  blockedReason: String
 }, {
   timestamps: true
 });

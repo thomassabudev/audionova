@@ -1,18 +1,32 @@
 import React from 'react';
-import { Play, Pause, Clock, Heart, MoreHorizontal, Music } from 'lucide-react';
-import { Button } from './ui/button';
+import { Play, Clock } from 'lucide-react';
 import { useMusic } from '../context/MusicContext';
-import type { Song } from '../services/jiosaavnApi';
-import { getHighestQualityImage } from '../services/jiosaavnApi';
 import PlaylistSongItem from './PlaylistSongItem';
+import { getHighestQualityImage } from '../services/jiosaavnApi';
+
+// Flexible song interface compatible with both MusicContext songs and JioSaavn API songs
+export interface SongLike {
+  id: string;
+  name: string;
+  primaryArtists: string;
+  image: Array<{ quality?: string; link: string }> | string[] | string | null;
+  duration: number;
+  url: string;
+  downloadUrl?: Array<{ quality?: string; link: string }>;
+  album?: string | { id?: string; name: string; url?: string };
+  year?: string;
+  language?: string;
+  playCount?: number;
+  releaseDate?: string;
+}
 
 interface PlaylistViewProps {
-  songs: Song[];
+  songs: SongLike[];
   title?: string;
   subtitle?: string;
   coverImage?: string;
-  onSongImageClick?: (song: Song) => void;
-  playlistId?: string; // Add playlistId prop
+  onSongImageClick?: (song: SongLike) => void;
+  playlistId?: string;
 }
 
 const PlaylistView: React.FC<PlaylistViewProps> = ({ 
@@ -21,9 +35,9 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({
   subtitle = '', 
   coverImage,
   onSongImageClick,
-  playlistId = `default-${Math.random().toString(36).substr(2, 9)}` // Generate unique default ID
+  playlistId = 'default'
 }) => {
-  const { playSong, setQueue, currentSong, isSongLiked, addToLikedSongs, removeFromLikedSongs, isPlaying, togglePlayPause, audioRef } = useMusic();
+  const { playSong, setQueue, currentSong, isSongLiked, addToLikedSongs, removeFromLikedSongs, isPlaying, togglePlayPause } = useMusic();
 
   const formatDuration = (seconds: number) => {
     if (!seconds || seconds <= 0) return '0:00';
@@ -32,23 +46,14 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleLikeToggle = (song: Song, e: React.MouseEvent) => {
+  const handleLikeToggle = (song: SongLike, e: React.MouseEvent) => {
     e.stopPropagation();
     if (isSongLiked(song.id)) {
       removeFromLikedSongs(song.id);
     } else {
-      addToLikedSongs(song);
+      // Cast to any to bridge the Song type gap — runtime shape is compatible
+      addToLikedSongs(song as any);
     }
-  };
-
-  const getSongImage = (song: Song) => {
-    if (!song.image || song.image.length === 0) return '';
-    return getHighestQualityImage(song.image);
-  };
-
-  // Check if a song is currently playing
-  const isSongPlaying = (song: Song) => {
-    return isPlaying && currentSong?.id === song.id;
   };
 
   return (
@@ -72,8 +77,7 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({
           <div>
             <p className="text-sm font-semibold text-muted-foreground">Playlist</p>
             <h1 className="text-3xl md:text-5xl font-bold text-foreground mb-4">{title}</h1>
-            {subtitle && <p className="text-muted-foreground">{subtitle}</p>
-}
+            {subtitle && <p className="text-muted-foreground">{subtitle}</p>}
             <p className="text-muted-foreground mt-2">
               {songs.length} song{songs.length !== 1 ? 's' : ''}
             </p>
@@ -96,33 +100,35 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({
 
         {/* Songs */}
         <div>
-        {songs.map((song, index) => {
-          const isCurrent = currentSong?.id === song.id;
-          const playing = isCurrent && isPlaying;
-          
-          return (
-            <PlaylistSongItem
-              key={`${playlistId}-${song.id || `song-${index}`}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`}
-              song={song}
-              index={index}
-              isCurrent={isCurrent}
-              playing={playing}
-              onPlay={(song) => {
-                // Set the entire playlist as the queue
-                setQueue(songs);
-                // Play the selected song
-                playSong(song);
-                // Notify parent to open expanded player
-                onSongImageClick?.(song);
-              }}
-              onTogglePlayPause={togglePlayPause}
-              onLikeToggle={handleLikeToggle}
-              isSongLiked={isSongLiked}
-              formatDuration={formatDuration}
-            />
-          );
-        })}
-      </div>
+          {songs.map((song, index) => {
+            const isCurrent = Boolean(
+              currentSong && (
+                (currentSong.id && song.id && String(currentSong.id) === String(song.id)) ||
+                (currentSong.name && song.name && currentSong.name.toLowerCase().trim() === song.name.toLowerCase().trim())
+              )
+            );
+            const playing = isCurrent && isPlaying;
+
+            return (
+              <PlaylistSongItem
+                key={`${playlistId}-${song.id || `song-${index}`}`}
+                song={song as any}
+                index={index}
+                isCurrent={isCurrent}
+                playing={playing}
+                onPlay={(s) => {
+                  setQueue(songs as any[]);
+                  playSong(s as any);
+                  onSongImageClick?.(s as SongLike);
+                }}
+                onTogglePlayPause={togglePlayPause}
+                onLikeToggle={handleLikeToggle as any}
+                isSongLiked={isSongLiked}
+                formatDuration={formatDuration}
+              />
+            );
+          })}
+        </div>
       </div>
     </div>
   );

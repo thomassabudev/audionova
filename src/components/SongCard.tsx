@@ -1,10 +1,12 @@
 import React, { useRef, useCallback, useState, memo } from 'react';
 import { motion, type Variants } from 'framer-motion';
 import { Play, Pause, Heart } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useMusic } from '@/context/MusicContext';
 import { isNewSong } from '@/utils/isNewSong';
 import { getHighestQualityImage } from '@/services/jiosaavnApi';
 import LanguageBadge from './LanguageBadge';
+import PlayingEqualizerBadge from './PlayingEqualizerBadge';
 
 interface SongCardProps {
   song: any;
@@ -44,6 +46,7 @@ const getPlaceholderImage = (text: string) => {
 const SongCard = memo(function SongCard({ song, playlist, index, onCardClick, showNewBadge = false, showLanguageBadge = true }: SongCardProps) {
   const imgRef = useRef<HTMLImageElement | null>(null);
   const [isHovered, setIsHovered] = useState(false);
+  const navigate = useNavigate();
 
   // Music context
   const {
@@ -137,19 +140,20 @@ const SongCard = memo(function SongCard({ song, playlist, index, onCardClick, sh
 
   return (
     <motion.div
-      className="song-card-liquid relative rounded-xl overflow-hidden bg-card border border-border shadow-sm cursor-pointer group"
+      className={`song-card-liquid relative rounded-xl overflow-hidden bg-card transition-all duration-300 shadow-sm cursor-pointer group ${
+        isCurrent ? 'ring-2 ring-red-500 shadow-[0_0_25px_rgba(239,68,68,0.4)] border-red-500/50' : 'border border-border'
+      }`}
       role="button"
       tabIndex={0}
       onKeyDown={handleKey}
       onClick={handleCardClick}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      // OPTIMIZED: Reduced animations for better scroll performance
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      whileHover={{ y: -2 }} // Reduced hover lift
-      whileTap={{ scale: 0.99 }} // Reduced tap scale
-      transition={{ duration: 0.2 }} // Faster transitions
+      whileHover={{ y: -4 }}
+      whileTap={{ scale: 0.98 }}
+      transition={{ duration: 0.2 }}
       aria-label={`${song.name} - ${song.primaryArtists || 'artist'}`}
     >
       <div className="relative w-full aspect-square overflow-hidden">
@@ -292,10 +296,18 @@ const SongCard = memo(function SongCard({ song, playlist, index, onCardClick, sh
       </div>
 
       <div className="p-3 bg-card">
-        <h3 className="font-medium text-foreground truncate">{song.name}</h3>
-        <p className="text-sm text-muted-foreground truncate">
+        <h3 className={`font-medium text-foreground truncate ${playing ? 'text-red-500 font-semibold' : ''}`}>{song.name}</h3>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            const artist = (song.primaryArtists || '').split(/[,&]/)[0].trim();
+            if (artist) navigate(`/artist/${encodeURIComponent(artist)}`);
+          }}
+          className="text-sm text-muted-foreground truncate w-full text-left hover:text-primary transition-colors"
+        >
           {song.primaryArtists || 'Unknown Artist'}
-        </p>
+        </button>
       </div>
     </motion.div>
   );

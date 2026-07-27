@@ -69,17 +69,39 @@ const verifyZeroTrustAuth = async (req, res, next) => {
 
     const token = authHeader.substring(7); // Remove 'Bearer '
     
-    if (!token || token.length < 100) { // Firebase tokens are much longer
-      auditData.violation = 'Invalid or empty token';
-      auditData.severity = 'HIGH';
-      auditData.tokenLength = token ? token.length : 0;
-      await auditLogger.logSecurityViolation(auditData);
-      
+    if (!token || token.length < 10) {
       return res.status(401).json({
         success: false,
         error: 'Valid token required',
         code: 'TOKEN_INVALID'
       });
+    }
+
+    // 🔒 Check if this is a Co-Admin JWT token first
+    const jwt = require('jsonwebtoken');
+    const CoAdmin = require('../models/CoAdmin');
+
+    try {
+      const decodedJwt = jwt.verify(token, process.env.JWT_SECRET);
+      if (decodedJwt && decodedJwt.isCoAdmin && decodedJwt.coAdminId) {
+        const coAdmin = await CoAdmin.findById(decodedJwt.coAdminId);
+        if (coAdmin && coAdmin.isActive) {
+          req.user = {
+            uid: String(coAdmin._id),
+            email: `${coAdmin.username}@coadmin.local`,
+            name: coAdmin.name,
+            admin: true,
+            isCoAdmin: true,
+            email_verified: true,
+            permissions: coAdmin.permissions || ['songs', 'featured', 'users']
+          };
+          return next();
+        } else {
+          return res.status(403).json({ success: false, error: 'Co-Admin account is inactive or revoked', code: 'ACCOUNT_DISABLED' });
+        }
+      }
+    } catch (jwtErr) {
+      // Not a valid Co-Admin JWT, proceed with Firebase Admin SDK verification below
     }
 
     // 🔒 CRITICAL: Firebase Admin SDK verification with revocation check

@@ -20,28 +20,12 @@ const analyticsSchema = new mongoose.Schema({
     ]
   },
   userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    type: mongoose.Schema.Types.Mixed,
     default: null
   },
   sessionId: String,
   // Event data
-  data: {
-    songId: String,
-    playlistId: String,
-    searchQuery: String,
-    duration: Number, // For play events, how long was played
-    position: Number, // Position in song when event occurred
-    source: String, // Where the event came from (home, search, playlist, etc.)
-    platform: String, // jiosaavn, spotify, etc.
-    quality: String, // audio quality
-    // Additional context
-    referrer: String,
-    userAgent: String,
-    ip: String,
-    country: String,
-    city: String
-  },
+  data: mongoose.Schema.Types.Mixed,
   // Admin-specific data
   adminData: {
     adminUserId: String,

@@ -44,17 +44,9 @@ export const useDynamicTheme = (): UseDynamicThemeReturn => {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
 
     try {
-      console.log('[DynamicTheme] Extracting colors from:', imageUrl);
-      
       const extractedColors = await extractColorsWithCache(imageUrl);
       const palette = generateColorPalette(extractedColors);
       const animatedGradients = createAnimatedGradient(palette);
-
-      console.log('[DynamicTheme] Colors extracted:', {
-        dominant: extractedColors.dominant,
-        vibrant: extractedColors.vibrant,
-        muted: extractedColors.muted,
-      });
 
       setState({
         palette,

@@ -118,8 +118,8 @@ const SpotifyPlayer: React.FC = () => {
           </button>
           <button
             onClick={toggleRepeat}
-            title={repeatMode === 'off' ? 'Enable repeat' : 'Disable repeat'}
-            className={`text-muted-foreground hover:text-foreground transition ${repeatMode !== 'off' ? 'text-emerald-500' : ''}`}
+            title={repeatMode === 'none' ? 'Enable repeat' : 'Disable repeat'}
+            className={`text-muted-foreground hover:text-foreground transition ${repeatMode !== 'none' ? 'text-emerald-500' : ''}`}
           >
             <Repeat className="w-4 h-4" />
           </button>

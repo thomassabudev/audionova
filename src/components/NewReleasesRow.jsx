@@ -7,6 +7,8 @@ import { motion } from 'framer-motion';
 import { useMusic } from '../context/MusicContext';
 import { toast } from 'sonner';
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5009';
+
 const NewReleasesRow = () => {
   const [newReleases, setNewReleases] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -28,9 +30,9 @@ const NewReleasesRow = () => {
       setLoading(true);
       
       // Build API endpoint based on selected language
-      let apiUrl = 'http://localhost:5009/api/new-releases?limit=25'; // Changed from 20 to 25
+      let apiUrl = `${API_BASE}/api/new-releases?limit=25`;
       if (selectedLanguage !== 'all') {
-        apiUrl = `http://localhost:5009/api/new-releases/${selectedLanguage}?limit=25`; // Changed from 20 to 25
+        apiUrl = `${API_BASE}/api/new-releases/${selectedLanguage}?limit=25`;
       }
       
       console.log('Fetching from URL:', apiUrl);
@@ -74,7 +76,7 @@ const NewReleasesRow = () => {
       
       // Fallback to trending songs if new releases API fails
       try {
-        const trendingResponse = await fetch('http://localhost:5009/api/trending?limit=25'); // Changed from 20 to 25
+        const trendingResponse = await fetch(`${API_BASE}/api/trending?limit=25`);
         if (trendingResponse.ok) {
           const trendingData = await trendingResponse.json();
           if (trendingData.success) {
@@ -144,7 +146,7 @@ const NewReleasesRow = () => {
       try {
         // Only attempt SSE connection if we're not already showing an error
         if (!error || !error.includes('Failed to load')) {
-          eventSource = new EventSource('http://localhost:5009/api/new-releases/events');
+          eventSource = new EventSource(`${API_BASE}/api/new-releases/events`);
           
           eventSource.onopen = () => {
             console.log('SSE connection opened for new releases');

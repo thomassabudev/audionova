@@ -1,11 +1,13 @@
 /**
  * 🎛️ PROFESSIONAL AUDIO PROCESSING CHAIN
- * 
+ *
  * Legitimate audio enhancement using Web Audio API
  * - NO fake upscaling or artificial enhancement
  * - Gentle EQ and dynamics processing only
  * - Transparent to user, improves perceived quality
  */
+
+import { getOrCreateSharedAudioSource } from './audioContextManager';
 
 export interface AudioProcessingConfig {
   enableEQ: boolean;
@@ -66,72 +68,44 @@ export class AudioProcessor {
    */
   async initializeProcessing(audioElement: HTMLAudioElement): Promise<boolean> {
     try {
-      // If already initialized, dispose first to avoid conflicts
-      if (this.isInitialized) {
-        console.log('[AudioProcessor] Already initialized, disposing first...');
-        this.dispose();
-      }
-
-      // Create AudioContext (handle browser prefixes)
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioContextClass) {
-        console.warn('[AudioProcessor] Web Audio API not supported');
+      const shared = getOrCreateSharedAudioSource(audioElement);
+      if (!shared) {
+        console.warn('[AudioProcessor] Could not acquire audio source');
         return false;
       }
 
-      this.audioContext = new AudioContextClass();
-      
-      // Resume context if suspended (required by browser autoplay policies)
+      this.sourceNode = shared.source;
+      this.audioContext = shared.context;
+
       if (this.audioContext.state === 'suspended') {
         await this.audioContext.resume();
       }
 
-      // Create source node from audio element
-      // Check if the audio element is already connected to avoid the error
-      try {
-        this.sourceNode = this.audioContext.createMediaElementSource(audioElement);
-      } catch (error: any) {
-        if (error.name === 'InvalidStateError' && error.message.includes('already connected')) {
-          console.warn('[AudioProcessor] Audio element already connected to another source node, skipping processing');
-          this.audioContext.close();
-          this.audioContext = null;
-          return false;
-        }
-        throw error;
-      }
+      try { this.sourceNode.disconnect(); } catch { /* ignore */ }
 
       // Create processing nodes
-      this.gainNode = this.audioContext.createGain();
+      this.gainNode     = this.audioContext.createGain();
       this.analyserNode = this.audioContext.createAnalyser();
 
-      // Create EQ nodes (3-band EQ)
       if (this.config.enableEQ) {
-        this.eqNodes.lowShelf = this.audioContext.createBiquadFilter();
+        this.eqNodes.lowShelf  = this.audioContext.createBiquadFilter();
         this.eqNodes.midPeaking = this.audioContext.createBiquadFilter();
         this.eqNodes.highShelf = this.audioContext.createBiquadFilter();
-
-        // Configure EQ filters
         this.setupEqualizer();
       }
 
-      // Create dynamics processing
       if (this.config.enableLimiter) {
         this.compressorNode = this.audioContext.createDynamicsCompressor();
-        this.limiterNode = this.audioContext.createDynamicsCompressor();
-        
+        this.limiterNode    = this.audioContext.createDynamicsCompressor();
         this.setupDynamicsProcessing();
       }
 
-      // Connect processing chain
       this.connectProcessingChain();
-
       this.isInitialized = true;
-      console.log('[AudioProcessor] Processing chain initialized successfully');
       return true;
 
     } catch (error) {
       console.error('[AudioProcessor] Failed to initialize:', error);
-      // Clean up on failure
       this.dispose();
       return false;
     }
@@ -303,83 +277,40 @@ export class AudioProcessor {
   }
 
   /**
-   * Clean up resources
+   * Clean up resources.
+   * The source node is kept alive via the module-level WeakMap so that
+   * re-initialization never needs to call createMediaElementSource() again.
    */
   dispose(): void {
-    console.log('[AudioProcessor] Disposing audio processor...');
-    
-    // Disconnect all nodes first
-    if (this.sourceNode) {
-      try {
-        this.sourceNode.disconnect();
-      } catch (e) {
-        // Ignore disconnect errors
-      }
-      this.sourceNode = null;
-    }
-
+    // Disconnect processing/utility nodes only (NOT the source node)
     if (this.gainNode) {
-      try {
-        this.gainNode.disconnect();
-      } catch (e) {
-        // Ignore disconnect errors
-      }
+      try { this.gainNode.disconnect(); } catch { /* ignore */ }
       this.gainNode = null;
     }
-
     if (this.analyserNode) {
-      try {
-        this.analyserNode.disconnect();
-      } catch (e) {
-        // Ignore disconnect errors
-      }
+      try { this.analyserNode.disconnect(); } catch { /* ignore */ }
       this.analyserNode = null;
     }
-
-    // Disconnect EQ nodes
     Object.keys(this.eqNodes).forEach(key => {
       const node = this.eqNodes[key as keyof typeof this.eqNodes];
       if (node) {
-        try {
-          node.disconnect();
-        } catch (e) {
-          // Ignore disconnect errors
-        }
+        try { node.disconnect(); } catch { /* ignore */ }
       }
     });
     this.eqNodes = { lowShelf: null, midPeaking: null, highShelf: null };
-
-    // Disconnect dynamics nodes
     if (this.compressorNode) {
-      try {
-        this.compressorNode.disconnect();
-      } catch (e) {
-        // Ignore disconnect errors
-      }
+      try { this.compressorNode.disconnect(); } catch { /* ignore */ }
       this.compressorNode = null;
     }
-
     if (this.limiterNode) {
-      try {
-        this.limiterNode.disconnect();
-      } catch (e) {
-        // Ignore disconnect errors
-      }
+      try { this.limiterNode.disconnect(); } catch { /* ignore */ }
       this.limiterNode = null;
     }
 
-    // Close audio context
-    if (this.audioContext) {
-      try {
-        this.audioContext.close();
-      } catch (e) {
-        // Ignore close errors
-      }
-      this.audioContext = null;
-    }
-    
+    // Null out references — the WeakMap keeps the real nodes alive
+    this.sourceNode   = null;
+    this.audioContext = null;
     this.isInitialized = false;
-    console.log('[AudioProcessor] Audio processor disposed successfully');
   }
 
   /**

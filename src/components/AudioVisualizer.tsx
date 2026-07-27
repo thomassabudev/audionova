@@ -1,4 +1,5 @@
-import React, { useEffect, useRef } from 'react';
+// src/components/AudioVisualizer.tsx
+import React from 'react';
 
 interface AudioVisualizerProps {
   isPlaying?: boolean;
@@ -11,46 +12,42 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
   size = 'md',
   className = '' 
 }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  
-  // Size configurations
   const sizeConfig = {
-    sm: { width: 18, height: 18, barWidth: 2, barCount: 3, gap: 1 },
-    md: { width: 24, height: 24, barWidth: 3, barCount: 3, gap: 2 },
-    lg: { width: 32, height: 32, barWidth: 4, barCount: 3, gap: 3 }
+    sm: { width: 24, height: 16, barWidth: 3, barCount: 4, gap: 2 },
+    md: { width: 30, height: 20, barWidth: 4, barCount: 4, gap: 2.5 },
+    lg: { width: 38, height: 26, barWidth: 5, barCount: 4, gap: 3 }
   };
   
   const config = sizeConfig[size];
   
   return (
     <div 
-      ref={containerRef}
-      className={`inline-flex items-end justify-center ${className}`}
+      className={`inline-flex items-end justify-center px-1 py-0.5 rounded-md bg-black/20 border border-white/10 backdrop-blur-xs ${className}`}
       style={{ 
         width: config.width, 
         height: config.height 
       }}
       role="img"
-      aria-label={isPlaying ? "Currently playing" : "Audio visualizer"}
+      aria-label={isPlaying ? "Audio playing visualizer" : "Audio visualizer"}
     >
-      {Array.from({ length: config.barCount }).map((_, index) => (
+      {[60, 100, 40, 85].map((hPercent, index) => (
         <div
           key={index}
-          className={`bg-red-500 rounded-t transition-all duration-150 ${
-            isPlaying 
-              ? 'animate-pulse' 
-              : ''
-          }`}
+          className="rounded-full bg-gradient-to-t from-red-500 via-pink-500 to-purple-400 shadow-[0_0_6px_rgba(239,68,68,0.7)] transition-all duration-300"
           style={{
             width: config.barWidth,
-            height: `${20 + (index * 10)}%`,
+            height: isPlaying ? `${Math.max(25, (hPercent + index * 15) % 100)}%` : '25%',
             marginLeft: index === 0 ? 0 : config.gap,
-            animationDelay: isPlaying ? `${index * 100}ms` : '0ms',
-            animationDuration: isPlaying ? '0.8s' : '0s',
-            animationIterationCount: isPlaying ? 'infinite' : '1'
+            animation: isPlaying ? `equalizer-pulse ${0.5 + index * 0.12}s ease-in-out infinite alternate` : 'none',
           }}
         />
       ))}
+      <style>{`
+        @keyframes equalizer-pulse {
+          0% { height: 15%; opacity: 0.5; }
+          100% { height: 100%; opacity: 1; }
+        }
+      `}</style>
     </div>
   );
 };

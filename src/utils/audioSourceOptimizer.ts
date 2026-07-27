@@ -23,7 +23,7 @@ export interface AudioSourceInfo {
 /**
  * Analyzes JioSaavn downloadUrl array and selects the highest quality stream
  */
-export function selectOptimalAudioSource(downloadUrls: any[]): AudioSourceInfo {
+export function selectOptimalAudioSource(downloadUrls: any[], preferredQuality: string = 'high'): AudioSourceInfo {
   if (!Array.isArray(downloadUrls) || downloadUrls.length === 0) {
     return {
       selectedUrl: '',
@@ -45,14 +45,14 @@ export function selectOptimalAudioSource(downloadUrls: any[]): AudioSourceInfo {
       if (typeof quality === 'string') {
         const qualityLower = quality.toLowerCase();
         
-        // Enhanced JioSaavn quality mapping (based on actual API responses)
+        // Enhanced JioSaavn quality mapping
         if (qualityLower.includes('320') || qualityLower === '320kbps' || qualityLower === 'high') {
           detectedQuality = 'high';
           estimatedBitrate = 320;
         } else if (qualityLower.includes('256') || qualityLower === '256kbps') {
           detectedQuality = 'high';
           estimatedBitrate = 256;
-        } else if (qualityLower.includes('160') || qualityLower === '160kbps' || qualityLower === 'medium') {
+        } else if (qualityLower.includes('160') || qualityLower === '160kbps' || qualityLower === 'medium' || qualityLower === 'normal') {
           detectedQuality = 'medium';
           estimatedBitrate = 160;
         } else if (qualityLower.includes('128') || qualityLower === '128kbps') {
@@ -88,8 +88,7 @@ export function selectOptimalAudioSource(downloadUrls: any[]): AudioSourceInfo {
         }
       }
       
-      // Detect format from URL
-      let format = 'mp3'; // Default assumption
+      let format = 'mp3';
       if (url.includes('.m4a') || url.includes('aac')) {
         format = 'aac';
       } else if (url.includes('.opus')) {
@@ -106,27 +105,20 @@ export function selectOptimalAudioSource(downloadUrls: any[]): AudioSourceInfo {
       };
     });
 
-  // Sort by quality priority: high > medium > low > unknown
-  // Then by bitrate within the same quality level
-  const qualityPriority = { high: 4, medium: 3, low: 2, unknown: 1 };
-  const sortedQualities = audioQualities.sort((a, b) => {
-    const priorityDiff = qualityPriority[b.quality] - qualityPriority[a.quality];
-    if (priorityDiff !== 0) return priorityDiff;
-    
-    // If same quality level, prefer higher bitrate
-    if (a.bitrate && b.bitrate) {
-      return b.bitrate - a.bitrate;
-    }
-    
-    // If one has bitrate and other doesn't, prefer the one with bitrate
-    if (a.bitrate && !b.bitrate) return -1;
-    if (!a.bitrate && b.bitrate) return 1;
-    
-    return 0;
-  });
+  // Map user preferred quality ('low' | 'normal' | 'high') to target quality
+  const targetQualityMap: Record<string, AudioQuality['quality']> = {
+    low: 'low',
+    normal: 'medium',
+    medium: 'medium',
+    high: 'high'
+  };
 
-  const selectedAudio = sortedQualities[0];
-  
+  const targetQuality = targetQualityMap[preferredQuality.toLowerCase()] || 'high';
+
+  // Find exact quality match or closest available bitrate
+  const exactMatch = audioQualities.find(q => q.quality === targetQuality);
+  const selectedAudio = exactMatch || [...audioQualities].sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
+
   if (!selectedAudio) {
     return {
       selectedUrl: '',

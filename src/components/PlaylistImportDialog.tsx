@@ -13,6 +13,7 @@ import { Label } from './ui/label';
 import { Download, Youtube, Music4, Loader2, Save } from 'lucide-react';
 import { useMusic } from '../context/MusicContext';
 import { toast } from 'sonner';
+import { API_ENDPOINTS } from '../config/api';
 
 interface PlaylistImportDialogProps {
   children: React.ReactNode;
@@ -71,7 +72,7 @@ const PlaylistImportDialog: React.FC<PlaylistImportDialogProps> = ({ children })
         }
         
         // Call backend API to import Spotify playlist
-        const response = await fetch(`http://localhost:5009/api/import/spotify/${playlistId}`);
+        const response = await fetch(`${API_ENDPOINTS.BASE_URL}/api/import/spotify/${playlistId}`);
         const data = await response.json();
         
         if (!response.ok) {
@@ -102,28 +103,22 @@ const PlaylistImportDialog: React.FC<PlaylistImportDialogProps> = ({ children })
         // Add songs to queue
         setQueue(data.playlist.tracks);
         
-        // Save playlist if requested
-        if (saveAfterImport) {
-          const playlistToSave = {
-            id: data.playlist.id,
-            name: data.playlist.name,
-            description: data.playlist.description,
-            tracks: data.playlist.tracks,
-            image: data.playlist.image,
-            createdAt: new Date(),
-            version: 1,
-          };
-          
-          savePlaylist(playlistToSave);
-          
-          toast.success('Playlist Saved!', {
-            description: `Added ${data.playlist.tracks.length} songs to your queue and saved "${data.playlist.name}" to your library`,
-          });
-        } else {
-          toast.success('Playlist Imported Successfully!', {
-            description: `Added ${data.playlist.tracks.length} songs to your queue from "${data.playlist.name}"`,
-          });
-        }
+        // Save playlist to library
+        const playlistToSave = {
+          id: data.playlist.id,
+          name: data.playlist.name,
+          description: data.playlist.description,
+          tracks: data.playlist.tracks,
+          image: data.playlist.image,
+          createdAt: new Date(),
+          version: 1,
+        };
+        
+        savePlaylist(playlistToSave);
+        
+        toast.success('Playlist Imported & Saved!', {
+          description: `Added ${data.playlist.tracks.length} songs to your queue and saved "${data.playlist.name}" to your library`,
+        });
         
         setOpen(false);
       } else if (youtubeUrl) {
@@ -133,7 +128,7 @@ const PlaylistImportDialog: React.FC<PlaylistImportDialogProps> = ({ children })
         }
         
         // Call backend API to import YouTube playlist
-        const response = await fetch(`http://localhost:5009/api/import/youtube/${playlistId}`);
+        const response = await fetch(`${API_ENDPOINTS.BASE_URL}/api/import/youtube/${playlistId}`);
         const data = await response.json();
         
         if (!response.ok) {
@@ -177,10 +172,10 @@ const PlaylistImportDialog: React.FC<PlaylistImportDialogProps> = ({ children })
       <DialogTrigger asChild>
         {children}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="w-[92vw] sm:max-w-[460px] p-4 sm:p-6 rounded-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Download className="w-5 h-5" />
+            <Download className="w-5 h-5 text-primary" />
             Import Playlist
           </DialogTitle>
           <DialogDescription>
@@ -189,8 +184,8 @@ const PlaylistImportDialog: React.FC<PlaylistImportDialogProps> = ({ children })
         </DialogHeader>
         <form onSubmit={(e) => handleImport(e, false)} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="spotify-url" className="flex items-center gap-2">
-              <Music4 className="w-4 h-4" />
+            <Label htmlFor="spotify-url" className="flex items-center gap-2 text-xs font-semibold">
+              <Music4 className="w-4 h-4 text-emerald-500" />
               Spotify Playlist URL
             </Label>
             <Input
@@ -198,12 +193,14 @@ const PlaylistImportDialog: React.FC<PlaylistImportDialogProps> = ({ children })
               placeholder="https://open.spotify.com/playlist/..."
               value={spotifyUrl}
               onChange={(e) => setSpotifyUrl(e.target.value)}
+              autoComplete="off"
+              className="text-xs sm:text-sm"
             />
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="youtube-url" className="flex items-center gap-2">
-              <Youtube className="w-4 h-4" />
+            <Label htmlFor="youtube-url" className="flex items-center gap-2 text-xs font-semibold">
+              <Youtube className="w-4 h-4 text-red-500" />
               YouTube Playlist URL
             </Label>
             <Input
@@ -211,15 +208,18 @@ const PlaylistImportDialog: React.FC<PlaylistImportDialogProps> = ({ children })
               placeholder="https://www.youtube.com/playlist?list=..."
               value={youtubeUrl}
               onChange={(e) => setYoutubeUrl(e.target.value)}
+              autoComplete="off"
+              className="text-xs sm:text-sm"
             />
           </div>
           
-          <div className="flex justify-end gap-2 pt-4">
+          <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center sm:justify-end gap-2 pt-4">
             <Button
               type="button"
               variant="outline"
               onClick={() => setOpen(false)}
               disabled={isImporting}
+              className="w-full sm:w-auto text-xs sm:text-sm"
             >
               Cancel
             </Button>
@@ -227,11 +227,12 @@ const PlaylistImportDialog: React.FC<PlaylistImportDialogProps> = ({ children })
               type="submit" 
               disabled={isImporting || (!spotifyUrl && !youtubeUrl)}
               variant="secondary"
+              className="w-full sm:w-auto text-xs sm:text-sm"
             >
               {isImporting ? (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-center gap-2">
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Importing...
+                  <span>Importing...</span>
                 </div>
               ) : (
                 'Import to Queue'
@@ -241,13 +242,13 @@ const PlaylistImportDialog: React.FC<PlaylistImportDialogProps> = ({ children })
               type="button"
               onClick={(e) => handleImport(e, true)}
               disabled={isImporting || (!spotifyUrl && !youtubeUrl)}
-              className="flex items-center gap-2"
+              className="w-full sm:w-auto text-xs sm:text-sm flex items-center justify-center gap-2"
             >
               <Save className="w-4 h-4" />
               {isImporting ? (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-center gap-2">
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Saving...
+                  <span>Saving...</span>
                 </div>
               ) : (
                 'Save Playlist'

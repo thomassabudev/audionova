@@ -162,9 +162,129 @@ export const recordPlay = async (token: string, playData: {
 // Test analytics endpoint (Admin only)
 export const testAnalytics = async (token: string) => {
   const response = await adminApi.get('/api/admin/analytics/test', {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-    },
+    headers: { 'Authorization': `Bearer ${token}` },
   });
   return response.data;
 };
+
+// ─── User Management ────────────────────────────────────────────────────
+
+export interface AdminUser {
+  id: string;
+  firebaseUid?: string;
+  email: string;
+  name: string;
+  profilePicture?: string;
+  isBlocked: boolean;
+  isActive: boolean;
+  blockedAt?: string;
+  blockedReason?: string;
+  createdAt: string;
+  likedSongsCount: number;
+}
+
+export const getUsers = async (token: string): Promise<{ success: boolean; users: AdminUser[]; total: number }> => {
+  const response = await adminApi.get('/api/admin/users', {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+  return response.data;
+};
+
+export const blockUser = async (token: string, uid: string, reason?: string) => {
+  const response = await adminApi.post(`/api/admin/users/${uid}/block`, { reason }, {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+  return response.data;
+};
+
+export const unblockUser = async (token: string, uid: string) => {
+  const response = await adminApi.post(`/api/admin/users/${uid}/unblock`, {}, {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+  return response.data;
+};
+
+// ─── Featured Songs ──────────────────────────────────────────────────────
+
+export interface FeaturedSong {
+  _id: string;
+  songId: string;
+  name: string;
+  primaryArtists?: string;
+  image?: any;
+  url?: string;
+  downloadUrl?: any;
+  duration?: number;
+  album?: any;
+  language?: string;
+  year?: string;
+  featuredAt: string;
+  isActive: boolean;
+  order: number;
+}
+
+export const getFeaturedSongs = async (token: string): Promise<{ success: boolean; songs: FeaturedSong[] }> => {
+  const response = await adminApi.get('/api/admin/featured-songs', {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+  return response.data;
+};
+
+export const addFeaturedSong = async (token: string, songData: Partial<FeaturedSong>) => {
+  const response = await adminApi.post('/api/admin/featured-songs', songData, {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+  return response.data;
+};
+
+export const removeFeaturedSong = async (token: string, id: string) => {
+  const response = await adminApi.delete(`/api/admin/featured-songs/${id}`, {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+  return response.data;
+};
+
+export const getPublicFeaturedSongs = async (): Promise<{ success: boolean; songs: FeaturedSong[] }> => {
+  const response = await adminApi.get('/api/admin/featured-songs/public');
+  return response.data;
+};
+
+// ─── Co-Admin Portal API ──────────────────────────────────────────────────
+
+export interface CoAdminUser {
+  _id: string;
+  username: string;
+  name: string;
+  role: string;
+  permissions: string[];
+  createdBy: string;
+  createdAt: string;
+  isActive: boolean;
+}
+
+export const coAdminLogin = async (username: string, password: string): Promise<{ success: boolean; token: string; coAdmin: CoAdminUser }> => {
+  const response = await adminApi.post('/api/admin/coadmin/login', { username, password });
+  return response.data;
+};
+
+export const createCoAdmin = async (token: string, data: { username: string; password: string; name: string; permissions?: string[] }) => {
+  const response = await adminApi.post('/api/admin/coadmin/create', data, {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  return response.data;
+};
+
+export const getCoAdmins = async (token: string): Promise<{ success: boolean; coAdmins: CoAdminUser[] }> => {
+  const response = await adminApi.get('/api/admin/coadmin/list', {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  return response.data;
+};
+
+export const deleteCoAdmin = async (token: string, id: string) => {
+  const response = await adminApi.delete(`/api/admin/coadmin/${id}`, {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  return response.data;
+};
+

@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { isValidImageUrl, debugProfilePicture } from '../utils/imageTestUtils';
 
 /**
  * Simplified hook specifically for Google profile pictures
@@ -21,39 +20,19 @@ export const useGoogleProfilePicture = () => {
         return;
       }
 
-      // Debug profile picture data (disabled to reduce console noise)
-      // if (import.meta.env.DEV) {
-      //   debugProfilePicture(user);
-      // }
-
       // Priority order:
       // 1. Custom uploaded image from localStorage
-      // 2. Google profile picture from Firebase (with special handling)
+      // 2. Google profile picture from Firebase
       // 3. null (will show initials)
 
       const savedPicture = localStorage.getItem(`profilePicture_${user.uid}`);
       
-      if (savedPicture && savedPicture.trim() !== '' && isValidImageUrl(savedPicture)) {
-        // Use custom uploaded image
+      if (savedPicture && savedPicture.trim() !== '') {
         setProfilePicture(savedPicture);
       } else if (user.photoURL && user.photoURL.trim() !== '') {
-        // For Google profile pictures, be more lenient with validation
-        const isGoogleImage = user.photoURL.includes('googleusercontent.com') || 
-                             user.photoURL.includes('googleapis.com') ||
-                             user.photoURL.includes('google.com/') ||
-                             user.photoURL.includes('lh3.googleusercontent.com') ||
-                             user.photoURL.includes('lh4.googleusercontent.com') ||
-                             user.photoURL.includes('lh5.googleusercontent.com') ||
-                             user.photoURL.includes('lh6.googleusercontent.com');
-        
-        if (isGoogleImage || isValidImageUrl(user.photoURL)) {
-          setProfilePicture(user.photoURL);
-        } else {
-          // Invalid or broken profile picture URL
-          setProfilePicture(null);
-        }
+        // Always trust Google profile pictures - no validation needed
+        setProfilePicture(user.photoURL);
       } else {
-        // No profile picture available - will show initials
         setProfilePicture(null);
       }
 

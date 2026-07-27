@@ -36,27 +36,19 @@ export default function Greeting() {
           {isLoading ? (
             <div className="w-6 h-6 border-2 border-white/30 border-l-white rounded-full animate-spin"></div>
           ) : profilePicture ? (
-            <div className="relative w-full h-full">
-              <img 
-                src={profilePicture} 
-                alt="Profile" 
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  target.style.display = 'none';
-                  const initialsSpan = target.parentElement?.querySelector('.initials-fallback') as HTMLElement;
-                  if (initialsSpan) {
-                    initialsSpan.style.display = 'flex';
-                  }
-                }}
-              />
-              <span 
-                className="initials-fallback text-lg font-bold text-white w-full h-full flex items-center justify-center absolute inset-0"
-                style={{ display: 'none' }}
-              >
-                {name?.charAt(0)?.toUpperCase() || 'U'}
-              </span>
-            </div>
+            <img 
+              src={profilePicture} 
+              alt="Profile" 
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+                const parent = target.parentElement;
+                if (parent) {
+                  parent.innerHTML = `<span class="text-lg font-bold text-white">${name?.charAt(0)?.toUpperCase() || 'U'}</span>`;
+                }
+              }}
+            />
           ) : (
             <span className="text-lg font-bold text-white">
               {name?.charAt(0)?.toUpperCase() || 'U'}

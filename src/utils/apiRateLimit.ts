@@ -122,7 +122,6 @@ export async function makeRateLimitedCall<T>(
       // Check if we should delay
       const delay = rateLimitManager.shouldDelay(endpoint);
       if (delay > 0) {
-        console.log(`[RateLimit] Delaying ${endpoint} call by ${delay}ms`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
 

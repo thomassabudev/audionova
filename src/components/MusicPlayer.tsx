@@ -1,13 +1,18 @@
-import React, { useEffect } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Shuffle, Repeat, ListMusic, PanelLeft } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Shuffle, Repeat, ListMusic, PanelLeft, Moon, Sliders, Share2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { cn } from '../lib/utils';
 import { useMusic } from '../context/MusicContext';
+import { useSettings } from '../context/SettingsContext';
 import { usePlaylistSidebar } from '../context/PlaylistSidebarContext';
 import { useDynamicTheme, useThemeCSS, useAnimatedGradient } from '../hooks/useDynamicTheme';
 import { useThemeDetection } from '../hooks/useThemeDetection';
 import { selectMusicPlayerImage } from '../utils/imageQualitySelector';
 import AudioVisualizer from './AudioVisualizer';
+import SleepTimerModal from './SleepTimerModal';
+import EqualizerModal from './EqualizerModal';
+import ShareSongModal from './ShareSongModal';
 
 interface MusicPlayerProps {
   onToggleSidebar?: () => void;
@@ -15,6 +20,12 @@ interface MusicPlayerProps {
 }
 
 const MusicPlayer: React.FC<MusicPlayerProps> = ({ onToggleSidebar, onOpenExpandedPlayer }) => {
+  const navigate = useNavigate();
+  const { settings } = useSettings();
+  const [isSleepModalOpen, setIsSleepModalOpen] = useState(false);
+  const [isEqModalOpen, setIsEqModalOpen] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+
   const {
     currentSong,
     isPlaying,
@@ -31,6 +42,8 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ onToggleSidebar, onOpenExpand
     setIsShuffle,
     setRepeatMode,
     seekTo,
+    sleepTimerOption,
+    sleepTimerRemaining,
   } = useMusic();
 
   const { isPlaylistSidebarOpen } = usePlaylistSidebar();
@@ -67,8 +80,12 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ onToggleSidebar, onOpenExpand
     }
   }, [currentSong?.id, updateThemeFromImage]); // Only update when song ID changes
 
+  const displayDuration = (duration && duration > 0 && isFinite(duration))
+    ? duration
+    : (currentSong?.duration ? Number(currentSong.duration) : 0);
+
   const formatTime = (seconds: number) => {
-    if (isNaN(seconds)) return '0:00';
+    if (isNaN(seconds) || !isFinite(seconds)) return '0:00';
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
@@ -79,7 +96,7 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ onToggleSidebar, onOpenExpand
     const clickX = e.clientX - rect.left;
     const width = rect.width;
     const percentage = clickX / width;
-    const newTime = percentage * duration;
+    const newTime = percentage * displayDuration;
     seekTo(newTime);
   };
 
@@ -207,12 +224,24 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ onToggleSidebar, onOpenExpand
         }}
       />
 
-      {/* Content with Enhanced Styling */}
-      <div className="relative z-10 flex items-center px-4 gap-4 h-full">
-        {/* Sidebar Toggle Button - Transparent style */}
+      {/* Mobile Thin Top Seek Bar (< md screens) */}
+      <div 
+        className="md:hidden absolute top-0 left-0 right-0 h-1 bg-white/20 cursor-pointer z-30" 
+        onClick={(e) => { e.stopPropagation(); handleProgressClick(e); }}
+        title="Tap to seek"
+      >
+        <div
+          className="h-full bg-gradient-to-r from-red-500 via-pink-500 to-purple-500 shadow-[0_0_8px_rgba(239,68,68,0.8)] transition-all"
+          style={{ width: `${displayDuration > 0 ? (currentTime / displayDuration) * 100 : 0}%` }}
+        />
+      </div>
+
+      {/* Content with Mobile-Responsive Layout */}
+      <div className="relative z-10 flex items-center px-3 md:px-4 gap-2 md:gap-4 h-full justify-between">
+        {/* Sidebar Toggle Button (Hidden on mobile < md) */}
         <motion.button
           onClick={onToggleSidebar}
-          className="text-white/80 hover:text-white transition-all duration-300 p-2 rounded-lg hover:bg-white/10"
+          className="hidden md:flex text-white/80 hover:text-white transition-all duration-300 p-2 rounded-lg hover:bg-white/10"
           title="Toggle sidebar"
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
@@ -221,18 +250,20 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ onToggleSidebar, onOpenExpand
         </motion.button>
 
         {/* Enhanced Song Info Section */}
-        <div className="flex items-center gap-3 w-80">
+        <div 
+          className="flex items-center gap-2.5 flex-1 min-w-0 md:w-80 md:flex-initial cursor-pointer"
+          onClick={onOpenExpandedPlayer}
+        >
           <motion.div
-            className="relative"
-            whileHover={{ scale: 1.08 }}
-            transition={{ duration: 0.3 }}
+            className="relative flex-shrink-0"
+            whileHover={{ scale: 1.05 }}
+            transition={{ duration: 0.2 }}
           >
-            <div className="relative w-14 h-14 rounded-xl overflow-hidden shadow-2xl">
+            <div className="relative w-11 h-11 md:w-14 md:h-14 rounded-lg md:rounded-xl overflow-hidden shadow-xl">
               <img
                 src={selectMusicPlayerImage(currentSong)}
                 alt={currentSong.name}
-                className="w-full h-full object-cover cursor-pointer"
-                onClick={onOpenExpandedPlayer}
+                className="w-full h-full object-cover"
               />
               
               {/* Spinning vinyl effect when playing */}
@@ -246,72 +277,61 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ onToggleSidebar, onOpenExpand
                       opacity: { duration: 0.3 },
                       rotate: { duration: 4, repeat: Infinity, ease: 'linear' }
                     }}
-                    className="absolute inset-0 border-2 border-white/40 rounded-xl"
+                    className="absolute inset-0 border border-white/40 rounded-lg md:rounded-xl"
                     style={{
                       background: 'conic-gradient(from 0deg, transparent, rgba(255,255,255,0.15), transparent)'
                     }}
                   />
                 )}
               </AnimatePresence>
-
-              {/* Enhanced glass reflection */}
-              <div className="absolute inset-0 bg-gradient-to-br from-white/25 via-transparent to-transparent rounded-xl pointer-events-none" />
+              <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-transparent rounded-lg md:rounded-xl pointer-events-none" />
             </div>
-
-            {/* Floating music notes animation */}
-            <AnimatePresence>
-              {isPlaying && (
-                <>
-                  {[...Array(2)].map((_, i) => (
-                    <motion.div
-                      key={i}
-                      initial={{ opacity: 0, y: 0, x: 0 }}
-                      animate={{
-                        opacity: [0, 1, 0],
-                        y: [-10, -25],
-                        x: [0, Math.random() * 20 - 10]
-                      }}
-                      transition={{
-                        duration: 2,
-                        repeat: Infinity,
-                        delay: i * 0.8,
-                        ease: 'easeOut'
-                      }}
-                      className="absolute top-0 left-1/2 text-white/70 text-sm pointer-events-none"
-                    >
-                      ♪
-                    </motion.div>
-                  ))}
-                </>
-              )}
-            </AnimatePresence>
           </motion.div>
 
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <motion.h4 
-                className="text-sm font-medium text-white truncate cursor-pointer drop-shadow-lg" 
-                onClick={onOpenExpandedPlayer}
-                whileHover={{ scale: 1.02 }}
-              >
+            <div className="flex items-center gap-1.5">
+              <h4 className="text-xs md:text-sm font-semibold text-white truncate drop-shadow-md">
                 {currentSong.name}
-              </motion.h4>
-              <AudioVisualizer isPlaying={isPlaying} size="sm" />
+              </h4>
+              {settings.showWaveform && (
+                <div className="flex items-center">
+                  <AudioVisualizer isPlaying={isPlaying} size="sm" />
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-2">
-              <motion.p 
-                className="text-xs text-white/80 truncate cursor-pointer drop-shadow-md" 
-                onClick={onOpenExpandedPlayer}
-                whileHover={{ scale: 1.02 }}
-              >
+              <p className="text-[11px] md:text-xs text-white/70 truncate drop-shadow">
                 {currentSong.primaryArtists}
-              </motion.p>
+              </p>
+              <span className="md:hidden text-[10px] text-red-300 font-mono font-medium">
+                {formatTime(currentTime)} / {formatTime(displayDuration)}
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Enhanced Player Controls */}
-        <div className="flex-1 flex flex-col items-center gap-2">
+        {/* Mobile Player Controls (Visible on mobile < md) */}
+        <div className="flex md:hidden items-center gap-1 flex-shrink-0">
+          <motion.button
+            onClick={(e) => { e.stopPropagation(); togglePlayPause(); }}
+            title={isPlaying ? 'Pause' : 'Play'}
+            className="w-10 h-10 rounded-full text-white flex items-center justify-center shadow-lg bg-red-500 hover:bg-red-600 transition-colors"
+            whileTap={{ scale: 0.9 }}
+          >
+            {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
+          </motion.button>
+          <motion.button
+            onClick={(e) => { e.stopPropagation(); playNext(); }}
+            title="Next track"
+            className="p-2 text-white/80 hover:text-white"
+            whileTap={{ scale: 0.9 }}
+          >
+            <SkipForward className="w-5 h-5" />
+          </motion.button>
+        </div>
+
+        {/* Enhanced Player Controls (Hidden on mobile < md) */}
+        <div className="hidden md:flex flex-1 flex-col items-center gap-2">
           <div className="flex items-center gap-4">
             <motion.button
               onClick={() => setIsShuffle(!isShuffle)}
@@ -418,7 +438,7 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ onToggleSidebar, onOpenExpand
                     background: palette 
                       ? `linear-gradient(90deg, ${palette.primary}, ${palette.secondary})`
                       : 'linear-gradient(90deg, #ef4444, #a855f7)',
-                    width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`
+                    width: `${displayDuration > 0 ? (currentTime / displayDuration) * 100 : 0}%`
                   }}
                   animate={{
                     boxShadow: isPlaying 
@@ -442,13 +462,13 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ onToggleSidebar, onOpenExpand
               </div>
             </div>
             <span className="text-xs text-white/80 w-10 font-medium">
-              {formatTime(duration)}
+              {formatTime(displayDuration)}
             </span>
           </div>
         </div>
 
-        {/* Enhanced Volume Control and Queue */}
-        <div className="flex items-center gap-4">
+        {/* Enhanced Volume Control and Queue (Hidden on mobile < md) */}
+        <div className="hidden md:flex items-center gap-4">
           <div className="flex items-center gap-3 w-40">
             <motion.button
               onClick={() => setVolume(volume > 0 ? 0 : 0.7)}
@@ -485,6 +505,46 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ onToggleSidebar, onOpenExpand
             </div>
           </div>
           
+          {/* Sleep Timer Button */}
+          <motion.button
+            onClick={() => setIsSleepModalOpen(true)}
+            className={`relative p-2 transition-all duration-300 rounded-lg hover:bg-white/10 ${
+              sleepTimerOption !== 'off' ? 'text-red-400 font-bold bg-red-500/20' : 'text-white/70 hover:text-white'
+            }`}
+            title={sleepTimerOption !== 'off' ? `Sleep Timer: ${sleepTimerOption}` : 'Sleep Timer'}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <Moon className="w-5 h-5" />
+            {sleepTimerRemaining !== null && (
+              <span className="absolute -top-1 -right-1.5 bg-red-500 text-white text-[9px] font-bold px-1 py-0.2 rounded-full shadow">
+                {Math.ceil(sleepTimerRemaining / 60)}m
+              </span>
+            )}
+          </motion.button>
+
+          {/* Equalizer (EQ) Button */}
+          <motion.button
+            onClick={() => setIsEqModalOpen(true)}
+            className="p-2 text-white/70 hover:text-white transition-all duration-300 rounded-lg hover:bg-white/10"
+            title="Audio Equalizer (EQ)"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <Sliders className="w-5 h-5" />
+          </motion.button>
+
+          {/* Share Song Button */}
+          <motion.button
+            onClick={() => setIsShareModalOpen(true)}
+            className="p-2 text-white/70 hover:text-white transition-all duration-300 rounded-lg hover:bg-white/10"
+            title="Share Song"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <Share2 className="w-5 h-5" />
+          </motion.button>
+
           {/* Enhanced Queue Button with Badge */}
           <motion.button
             onClick={onOpenExpandedPlayer}
@@ -512,6 +572,11 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ onToggleSidebar, onOpenExpand
           </motion.button>
         </div>
       </div>
+
+      {/* Modals */}
+      <SleepTimerModal isOpen={isSleepModalOpen} onClose={() => setIsSleepModalOpen(false)} />
+      <EqualizerModal isOpen={isEqModalOpen} onClose={() => setIsEqModalOpen(false)} />
+      <ShareSongModal song={currentSong} isOpen={isShareModalOpen} onClose={() => setIsShareModalOpen(false)} />
 
       {/* Outer glow effect with dynamic colors - Theme-aware visibility */}
       <div 

@@ -37,7 +37,7 @@ export const isLikelyWrongImage = (url?: string | null, song?: APIAnySong): bool
     'compilation',
     'various',
     'mixtape',
-    'album_art', // Generic album art
+    'album_art',
     'cover_generic',
     'no_image',
     'noimage',
@@ -49,6 +49,17 @@ export const isLikelyWrongImage = (url?: string | null, song?: APIAnySong): bool
     'icon',
     'avatar',
     'profile',
+    // Compilation album URL patterns
+    'best-of-',
+    'best_of_',
+    'top-songs',
+    'top_songs',
+    'greatest-hits',
+    'greatest_hits',
+    'top-hits',
+    'top_hits',
+    'hits-of-',
+    'hits_of_',
   ];
 
   if (tokens.some(t => s.includes(t))) return true;
@@ -66,8 +77,21 @@ export const isLikelyWrongImage = (url?: string | null, song?: APIAnySong): bool
   if (song && song.name) {
     const songName = song.name.toLowerCase();
     // If URL contains "various" or "compilation" but song is not a compilation, likely wrong
-    if ((s.includes('various') || s.includes('compilation')) && 
+    if ((s.includes('various') || s.includes('compilation')) &&
         !songName.includes('various') && !songName.includes('compilation')) {
+      return true;
+    }
+  }
+
+  // Check album name for compilation keywords
+  if (song) {
+    const albumName = (
+      typeof song.album === 'string'
+        ? song.album
+        : song.album?.name || ''
+    ).toLowerCase();
+    const compilationAlbumTokens = ['best of ', 'best of ', 'top hits', 'top songs', 'greatest hits', 'hits of ', 'collection of'];
+    if (compilationAlbumTokens.some(t => albumName.includes(t))) {
       return true;
     }
   }

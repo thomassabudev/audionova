@@ -100,6 +100,7 @@ function applySettingsToDOM(settings: ThemeSettings) {
     };
     mediaQuery.addEventListener('change', listener);
   } else {
+    root.classList.toggle('dark', settings.themeMode === 'dark');
     root.classList.toggle('theme-dark', settings.themeMode === 'dark');
     root.classList.toggle('theme-light', settings.themeMode === 'light');
   }

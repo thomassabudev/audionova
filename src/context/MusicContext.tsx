@@ -1,8 +1,12 @@
 import React, { createContext, useContext, useState, useRef, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { useAuth } from './AuthContext';
 import { recordPlay } from '../services/adminApi';
 import { AudioProcessor } from '../utils/audioProcessor';
 import { selectOptimalAudioSource, getQualityDescription, type AudioSourceInfo } from '../utils/audioSourceOptimizer';
+import { fetchLikedSongs, pushLikedSongs, fetchPlaylists, pushPlaylists } from '../services/syncService';
+import { jiosaavnApi } from '../services/jiosaavnApi';
+import { API_ENDPOINTS } from '../config/api';
 
 interface Song {
   id: string;
@@ -25,6 +29,7 @@ interface Playlist {
   tracks: Song[];
   currentIndex?: number;
   language?: string;
+  image?: string | string[] | Array<{ quality?: string; link: string }>;
 }
 
 interface MusicContextType {
@@ -47,8 +52,14 @@ interface MusicContextType {
   setActivePlaylist: (playlist: Playlist | null) => void;
   setRepeatMode: (mode: 'none' | 'one' | 'all') => void;
   setIsShuffle: (shuffle: boolean) => void;
+  toggleRepeat: () => void;
+  toggleShuffle: () => void;
   setPlaylistAndPlay: (playlist: Song[], index: number) => void;
+  addToQueue: (song: Song) => void;
+  removeFromQueue: (index: number) => void;
+  reorderQueue: (from: number, to: number) => void;
   savePlaylist: (playlist: Playlist) => void;
+  deletePlaylist: (playlistId: string) => void;
   error: string | null;
   setError: (error: string | null) => void;
   likedSongs: Song[];
@@ -64,12 +75,19 @@ interface MusicContextType {
   audioProcessingEnabled: boolean;
   setAudioProcessingEnabled: (enabled: boolean) => void;
   audioProcessor: AudioProcessor | null;
+
+  // Sleep Timer
+  sleepTimerOption: string;
+  sleepTimerRemaining: number | null;
+  setSleepTimerOption: (option: string) => void;
+  cancelSleepTimer: () => void;
+  extendSleepTimer: (minutes?: number) => void;
 }
 
 const MusicContext = createContext<MusicContextType | undefined>(undefined);
 
 export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { getAuthToken } = useAuth();
+  const { getAuthToken, user } = useAuth();
   // Audio state
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -111,25 +129,121 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   });
   const [audioProcessor] = useState(() => new AudioProcessor());
 
+  // Sleep Timer state
+  const [sleepTimerOption, setSleepTimerOptionState] = useState<string>('off');
+  const [sleepTimerRemaining, setSleepTimerRemaining] = useState<number | null>(null);
+
+  const setSleepTimerOption = (option: string) => {
+    setSleepTimerOptionState(option);
+
+    if (option === 'off') {
+      setSleepTimerRemaining(null);
+      toast.success('Sleep timer turned off');
+      return;
+    }
+
+    if (option === 'end_of_song') {
+      setSleepTimerRemaining(null);
+      toast.success('Sleep timer set: End of current song 🌙');
+      return;
+    }
+
+    const minutesMap: Record<string, number> = {
+      '5m': 5,
+      '15m': 15,
+      '30m': 30,
+      '45m': 45,
+      '60m': 60,
+    };
+
+    const mins = minutesMap[option] || 15;
+    const totalSeconds = mins * 60;
+    setSleepTimerRemaining(totalSeconds);
+    toast.success(`Sleep timer set for ${mins} minutes 🌙`);
+  };
+
+  const cancelSleepTimer = () => {
+    setSleepTimerOptionState('off');
+    setSleepTimerRemaining(null);
+    toast.success('Sleep timer cancelled');
+  };
+
+  const extendSleepTimer = (minutes: number = 15) => {
+    setSleepTimerRemaining((prev) => (prev !== null ? prev + minutes * 60 : minutes * 60));
+    toast.success(`Sleep timer extended by ${minutes} minutes 🌙`);
+  };
+
+  // Countdown effect for Sleep Timer
+  useEffect(() => {
+    if (sleepTimerRemaining === null || !isPlaying) return;
+
+    const timer = setInterval(() => {
+      setSleepTimerRemaining((prev) => {
+        if (prev === null || prev <= 1) {
+          clearInterval(timer);
+          if (audioRef.current) {
+            audioRef.current.pause();
+          }
+          setIsPlaying(false);
+          setSleepTimerOptionState('off');
+          toast('Sleep timer finished. Goodnight! 🌙', {
+            icon: '🌙',
+            duration: 6000,
+          });
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [sleepTimerRemaining, isPlaying]);
+
   // Refs for accessing current values in callbacks
   const audioRef = useRef<HTMLAudioElement>(null);
   const queueRef = useRef(queue);
   const queueIndexRef = useRef(queueIndex);
   const playPauseTimeoutRef = useRef<number | null>(null);
   const activePlaylistRef = useRef(activePlaylist);
+  const repeatModeRef = useRef(repeatMode);
+  const isShuffleRef = useRef(isShuffle);
 
   // Update refs when state changes
   useEffect(() => {
     queueRef.current = queue;
     queueIndexRef.current = queueIndex;
     activePlaylistRef.current = activePlaylist;
-  }, [queue, queueIndex, activePlaylist]);
+    repeatModeRef.current = repeatMode;
+    isShuffleRef.current = isShuffle;
+  }, [queue, queueIndex, activePlaylist, repeatMode, isShuffle]);
+
+  const toggleRepeat = () => {
+    setRepeatMode((prev) => {
+      const nextMode = prev === 'none' ? 'one' : prev === 'one' ? 'all' : 'none';
+      toast.success(
+        nextMode === 'one'
+          ? 'Repeat Track enabled 🔂'
+          : nextMode === 'all'
+          ? 'Repeat Queue enabled 🔁'
+          : 'Repeat Off ➡️'
+      );
+      return nextMode;
+    });
+  };
+
+  const toggleShuffle = () => {
+    setIsShuffle((prev) => {
+      const nextShuffle = !prev;
+      toast.success(nextShuffle ? 'Shuffle enabled 🔀' : 'Shuffle disabled ➡️');
+      return nextShuffle;
+    });
+  };
 
   // Cleanup audio processor on unmount
   useEffect(() => {
     return () => {
       if (audioProcessor) {
-        console.log('[AudioProcessor] Cleaning up audio processor');
+        // Removed verbose logging for cleaner console
         audioProcessor.dispose();
       }
     };
@@ -167,16 +281,38 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
     
     const handleLoadedMetadata = () => {
-      const newDuration = audio.duration || 0;
-      console.debug('[Player] Loaded metadata, duration:', newDuration);
-      setDuration(newDuration);
+      const newDuration = (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration) && audio.duration > 0)
+        ? audio.duration
+        : 0;
+      if (newDuration > 0) {
+        setDuration(newDuration);
+      }
       setCurrentTime(0); // Reset current time when new song loads
+    };
+
+    const handleDurationChange = () => {
+      if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration) && audio.duration > 0) {
+        setDuration(audio.duration);
+      }
     };
     
     const handleEnded = () => {
-      console.debug('[Player] audio ended');
-      setIsPlaying(false);
+      console.debug('[Player] audio ended, repeatMode:', repeatModeRef.current);
       setCurrentTime(0);
+
+      // Repeat One Track (🔂) - Repeat current song immediately without advancing queue
+      if (repeatModeRef.current === 'one') {
+        console.debug('[Player] Repeat One mode active - restarting track');
+        if (audioRef.current) {
+          audioRef.current.currentTime = 0;
+          audioRef.current.play()
+            .then(() => setIsPlaying(true))
+            .catch((err) => console.error('[Player] Repeat One playback failed:', err));
+        }
+        return;
+      }
+
+      setIsPlaying(false);
       playNext();
     };
 
@@ -252,6 +388,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // Add all event listeners
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('durationchange', handleDurationChange);
     audio.addEventListener('ended', handleEnded);
     audio.addEventListener('play', handlePlay);
     audio.addEventListener('pause', handlePause);
@@ -271,6 +408,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('durationchange', handleDurationChange);
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('play', handlePlay);
       audio.removeEventListener('pause', handlePause);
@@ -308,7 +446,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Analytics tracking
   const trackPlay = async (song: Song) => {
     try {
-      console.log('[Analytics] Starting play tracking for:', song.name);
+      // Removed verbose logging for cleaner console
       
       // Check if user is authenticated
       if (!getAuthToken) {
@@ -318,20 +456,20 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
       
       const token = await getAuthToken();
-      console.log('[Analytics] Auth token obtained:', token ? 'Yes' : 'No');
+      // Removed verbose logging for cleaner console
       
       if (token) {
-        console.log('[Analytics] Tracking authenticated play for:', song.name);
+        // Removed verbose logging for cleaner console
         const playData = {
           songId: song.id,
           songTitle: song.name,
           artist: song.primaryArtists,
           duration: song.duration
         };
-        console.log('[Analytics] Play data:', playData);
+        // Removed verbose logging for cleaner console
         
         const result = await recordPlay(token, playData);
-        console.log('[Analytics] Play tracked successfully:', result);
+        // Removed verbose logging for cleaner console
       } else {
         console.warn('[Analytics] No auth token available for tracking - using anonymous tracking');
         await trackPlayAnonymous(song);
@@ -340,7 +478,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       console.error('[Analytics] Failed to track authenticated play:', error);
       
       // Fallback to anonymous tracking
-      console.log('[Analytics] Falling back to anonymous tracking');
+      // Removed verbose logging for cleaner console
       await trackPlayAnonymous(song);
     }
   };
@@ -348,7 +486,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Anonymous analytics tracking (fallback)
   const trackPlayAnonymous = async (song: Song) => {
     try {
-      console.log('[Analytics] Tracking anonymous play for:', song.name);
+      // Removed verbose logging for cleaner console
       
       const playData = {
         songId: song.id,
@@ -357,7 +495,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         duration: song.duration
       };
       
-      const response = await fetch('http://localhost:5009/api/play/anonymous', {
+      const response = await fetch(`${API_ENDPOINTS.BASE_URL}/api/play/anonymous`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -368,7 +506,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const result = await response.json();
       
       if (result.success) {
-        console.log('[Analytics] Anonymous play tracked successfully');
+        // Removed verbose logging for cleaner console
       } else {
         console.error('[Analytics] Failed to track anonymous play:', result.error);
       }
@@ -380,55 +518,62 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Initialize audio processing when audio element is ready
   useEffect(() => {
-    // TEMPORARILY DISABLED: AudioProcessor causing connection conflicts
-    // TODO: Fix AudioProcessor initialization conflicts
-    console.log('[AudioProcessor] Audio processing temporarily disabled to fix playback issues');
-    
-    /*
-    const initializeAudioProcessing = async () => {
-      if (audioRef.current && audioProcessingEnabled && !audioProcessor.getStatus().isInitialized) {
-        console.log('[AudioProcessor] Initializing audio processing...');
-        try {
-          const success = await audioProcessor.initializeProcessing(audioRef.current);
-          if (success) {
-            console.log('[AudioProcessor] Audio processing initialized successfully');
-          } else {
-            console.warn('[AudioProcessor] Failed to initialize audio processing - falling back to basic playback');
-          }
-        } catch (error) {
-          console.error('[AudioProcessor] Error during initialization:', error);
-          console.warn('[AudioProcessor] Falling back to basic audio playback');
-        }
-      }
-    };
-
-    // Initialize when we have an audio element and processing is enabled
-    if (audioRef.current && audioProcessingEnabled) {
-      initializeAudioProcessing();
-    }
-
-    // Cleanup function to dispose audio processor when component unmounts or processing is disabled
+    // AudioProcessor is initialized lazily inside proceedWithPlayback
+    // (after a user gesture) to comply with browser autoplay policy.
     return () => {
       if (!audioProcessingEnabled && audioProcessor.getStatus().isInitialized) {
-        console.log('[AudioProcessor] Disposing audio processor due to disabled processing');
         audioProcessor.dispose();
       }
     };
-    */
-  }, [audioProcessingEnabled]); // Remove audioProcessor from dependencies as it's stable
+  }, [audioProcessingEnabled]);
+
+  // On login: pull data from MongoDB and update localStorage
+  useEffect(() => {
+    if (!user) return;
+    const syncFromBackend = async () => {
+      try {
+        const token = await getAuthToken();
+        if (!token) return;
+        const [remoteLiked, remotePlaylists] = await Promise.all([
+          fetchLikedSongs(token),
+          fetchPlaylists(token),
+        ]);
+        if (remoteLiked.length > 0) setLikedSongs(remoteLiked);
+        if (remotePlaylists.length > 0) setSavedPlaylists(remotePlaylists);
+      } catch {
+        // Silent fail — localStorage remains as fallback
+      }
+    };
+    syncFromBackend();
+  }, [user]);
+
+  // Push liked songs to MongoDB on change (1.5s debounce)
+  useEffect(() => {
+    if (!user) return;
+    const timer = setTimeout(async () => {
+      try {
+        const token = await getAuthToken();
+        if (token) await pushLikedSongs(token, likedSongs);
+      } catch { /* silent */ }
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [likedSongs, user]);
+
+  // Push playlists to MongoDB on change (1.5s debounce)
+  useEffect(() => {
+    if (!user) return;
+    const timer = setTimeout(async () => {
+      try {
+        const token = await getAuthToken();
+        if (token) await pushPlaylists(token, savedPlaylists);
+      } catch { /* silent */ }
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [savedPlaylists, user]);
 
   // Playback methods with enhanced audio source selection
   const playSong = (song: Song) => {
-    console.debug('[Player] playSong called with', song?.name);
-    console.log('[Player] Song data structure:', {
-      id: song?.id,
-      name: song?.name,
-      url: song?.url,
-      downloadUrl: song?.downloadUrl,
-      hasDownloadUrl: !!(song?.downloadUrl && Array.isArray(song.downloadUrl)),
-      downloadUrlLength: song?.downloadUrl?.length || 0,
-      imageData: song?.image
-    });
+    // Removed verbose logging for cleaner console
     
     if (!song) {
       console.warn('[Player] playSong called with invalid song');
@@ -446,31 +591,48 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   // Continue with playback
-  const proceedWithPlayback = (song: Song) => {
-    // Select optimal audio source with better fallback handling
+  const proceedWithPlayback = async (song: Song) => {
+    // Read audio quality preference from user settings
+    let preferredQuality = 'normal';
+    try {
+      const savedSettingsStr = localStorage.getItem('userSettings');
+      if (savedSettingsStr) {
+        preferredQuality = JSON.parse(savedSettingsStr).audioQuality || 'normal';
+      }
+    } catch (e) { /* fallback */ }
+
+    let targetSong = { ...song };
+    const isSpotifyUrl = (targetSong.url || '').includes('spotify.com') || (targetSong.url || '').includes('spotify:');
+
+    // If Spotify link and no downloadUrl stream, search JioSaavn stream automatically
+    if (isSpotifyUrl && (!targetSong.downloadUrl || (Array.isArray(targetSong.downloadUrl) && targetSong.downloadUrl.length === 0))) {
+      console.debug('[Player] Spotify track URL detected, resolving direct MP3 stream:', targetSong.name);
+      try {
+        const matches = await jiosaavnApi.searchSongs(`${targetSong.name} ${targetSong.primaryArtists || ''}`, 1);
+        if (matches && matches.length > 0 && matches[0].downloadUrl) {
+          targetSong.downloadUrl = matches[0].downloadUrl;
+          targetSong.url = matches[0].url;
+        }
+      } catch (err) {
+        console.warn('[Player] Spotify stream resolution failed:', err);
+      }
+    }
+
+    // Select optimal audio source with preferred quality
     let audioSourceInfo: AudioSourceInfo;
     
-    if (song.downloadUrl && Array.isArray(song.downloadUrl) && song.downloadUrl.length > 0) {
-      // Use the audio source optimizer for better quality
-      audioSourceInfo = selectOptimalAudioSource(song.downloadUrl);
-      console.log('[AudioOptimizer] Selected audio source:', {
-        quality: audioSourceInfo.detectedQuality,
-        bitrate: audioSourceInfo.detectedBitrate,
-        format: audioSourceInfo.detectedFormat,
-        availableOptions: audioSourceInfo.availableQualities.length,
-        selectedUrl: audioSourceInfo.selectedUrl.substring(0, 50) + '...'
-      });
-    } else if (song.url && song.url.trim() !== '') {
-      // Fallback to existing URL
+    if (targetSong.downloadUrl && Array.isArray(targetSong.downloadUrl) && targetSong.downloadUrl.length > 0) {
+      // Use the audio source optimizer with user preferred quality
+      audioSourceInfo = selectOptimalAudioSource(targetSong.downloadUrl, preferredQuality);
+    } else if (targetSong.url && targetSong.url.trim() !== '' && !targetSong.url.includes('spotify.com')) {
       audioSourceInfo = {
-        selectedUrl: song.url,
+        selectedUrl: targetSong.url,
         detectedQuality: 'unknown',
         availableQualities: []
       };
-      console.log('[AudioOptimizer] Using fallback URL (no downloadUrl available)');
     } else {
       // No valid audio source found
-      console.error('[Player] No valid audio URL found:', song);
+      console.error('[Player] No valid audio URL found:', targetSong);
       setError('Cannot play song: No audio URL available');
       return;
     }
@@ -489,9 +651,23 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setCurrentSong(song);
     setCurrentAudioInfo(audioSourceInfo);
     
+    // Initialize duration immediately from song metadata
+    const initialDur = Number(song.duration) || 0;
+    setDuration(initialDur);
+    
     // Track the play for analytics
-    console.log('[Player] About to track play for analytics');
+    // Removed verbose logging for cleaner console
     trackPlay(song);
+    
+    // Dispatch custom event for play history (consumed by SocialContext)
+    window.dispatchEvent(new CustomEvent('audionova:songPlayed', {
+      detail: {
+        songId: song.id,
+        songName: song.name,
+        artistName: song.primaryArtists || '',
+        language: song.language || '',
+      }
+    }));
     
     if (audioRef.current) {
       try {
@@ -515,7 +691,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         audioRef.current.src = audioSourceInfo.selectedUrl;
         audioRef.current.volume = volume;
         
-        console.log('[Player] Audio configured with URL:', audioSourceInfo.selectedUrl.substring(0, 50) + '...');
+        // Removed verbose logging for cleaner console
         
         // Play the audio with enhanced error handling
         const attemptPlay = async () => {
@@ -528,11 +704,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             
             if (playPromise !== undefined) {
               await playPromise;
-              console.debug('[Player] Audio started playing successfully');
-              console.log('[AudioQuality] Now playing:', getQualityDescription(
-                audioSourceInfo.detectedQuality, 
-                audioSourceInfo.detectedBitrate
-              ));
+              // Removed verbose logging for cleaner console
               setIsPlaying(true);
             }
           } catch (error: any) {
@@ -561,6 +733,11 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         
         // Attempt to play immediately
         attemptPlay();
+
+        // Init AudioProcessor here — guaranteed user gesture context
+        if (audioProcessingEnabled && !audioProcessor.getStatus().isInitialized) {
+          audioProcessor.initializeProcessing(audioRef.current).catch(() => {});
+        }
         
       } catch (error) {
         console.error('[Player] Error setting up audio:', error);
@@ -673,37 +850,34 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const playNext = () => {
     console.debug('[Player] playNext called');
-    // Use refs to get current values to avoid async state issues
     const currentQueue = queueRef.current;
     const currentIndex = queueIndexRef.current;
     const currentPlaylist = activePlaylistRef.current;
+    const currentRepeat = repeatModeRef.current;
+    const currentShuffle = isShuffleRef.current;
     
     console.debug('[Player] playNext called with', {
       queueLength: currentQueue.length,
       currentIndex: currentIndex,
-      repeatMode: repeatMode,
-      isShuffle: isShuffle,
+      repeatMode: currentRepeat,
+      isShuffle: currentShuffle,
       playlistId: currentPlaylist?.id || null,
       playlistTracks: currentPlaylist?.tracks?.length || 0
     });
     
-    // Use the active playlist if available, otherwise fall back to queue
     const playlistToUse = currentPlaylist?.tracks || currentQueue;
     let playlistIndex = currentPlaylist?.currentIndex !== undefined ? currentPlaylist.currentIndex : currentIndex;
     
     if (playlistToUse.length > 0 && playlistIndex >= 0) {
       let nextIndex;
       
-      if (isShuffle && playlistToUse.length > 1) {
-        // For search results with language filtering
+      if (currentShuffle && playlistToUse.length > 1) {
         if (currentPlaylist?.language) {
-          // Filter songs by the same language as the current song
           const sameLanguageSongs = playlistToUse
             .map((song, index) => ({ song, index }))
             .filter(({ song }) => song.language === currentPlaylist.language);
           
           if (sameLanguageSongs.length > 1) {
-            // Generate a random index from songs with the same language
             const currentSongLanguageIndex = sameLanguageSongs.findIndex(({ index }) => index === playlistIndex);
             let nextLanguageSongIndex;
             
@@ -713,14 +887,12 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             
             nextIndex = sameLanguageSongs[nextLanguageSongIndex].index;
           } else {
-            // If there's only one song with the same language, just go to the next song in the playlist
             nextIndex = playlistIndex + 1;
             if (nextIndex >= playlistToUse.length) {
-              nextIndex = 0; // Loop back to beginning
+              nextIndex = 0;
             }
           }
         } else {
-          // Generate a random index that's not the current one
           do {
             nextIndex = Math.floor(Math.random() * playlistToUse.length);
           } while (nextIndex === playlistIndex && playlistToUse.length > 1);
@@ -728,12 +900,10 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       } else {
         nextIndex = playlistIndex + 1;
         
-        // Handle repeat mode
         if (nextIndex >= playlistToUse.length) {
-          if (repeatMode === 'all') {
-            nextIndex = 0; // Loop back to beginning
+          if (currentRepeat === 'all' || currentRepeat === 'one') {
+            nextIndex = 0;
           } else {
-            // No more songs to play - this is the correct behavior for repeat: none
             console.debug('[Player] reached end, stopping');
             setIsPlaying(false);
             if (audioRef.current) {
@@ -747,23 +917,18 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       console.debug('[Player] playNext -> nextIndex', nextIndex, 'nextTrack', playlistToUse[nextIndex]?.name);
       const nextSong = playlistToUse[nextIndex];
+      if (!nextSong) return;
       
-      // Update the active playlist if it exists
       if (currentPlaylist) {
-        const updatedPlaylist = {
+        setActivePlaylist({
           ...currentPlaylist,
           currentIndex: nextIndex
-        };
-        setActivePlaylist(updatedPlaylist);
+        });
       }
       
       setQueueIndex(nextIndex);
-      
-      // Play the next song immediately
-      console.debug('[Player] playNext calling playSong for next track');
       playSong(nextSong);
     } else {
-      // If queue is empty or invalid index, stop playing
       console.debug('[Player] queue is empty or invalid index, stopping playback');
       setIsPlaying(false);
       if (audioRef.current) {
@@ -775,12 +940,12 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const playPrevious = () => {
     console.debug('[Player] playPrevious called');
-    // Use refs to get current values to avoid async state issues
     const currentQueue = queueRef.current;
     const currentIndex = queueIndexRef.current;
     const currentPlaylist = activePlaylistRef.current;
+    const currentRepeat = repeatModeRef.current;
+    const currentShuffle = isShuffleRef.current;
     
-    // Use the active playlist if available, otherwise fall back to queue
     const playlistToUse = currentPlaylist?.tracks || currentQueue;
     let playlistIndex = currentPlaylist?.currentIndex !== undefined ? currentPlaylist.currentIndex : currentIndex;
     
@@ -789,33 +954,30 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } else if (playlistToUse.length > 0 && playlistIndex >= 0) {
       let prevIndex;
       
-      if (isShuffle && playlistToUse.length > 1) {
-        // Generate a random index that's not the current one
+      if (currentShuffle && playlistToUse.length > 1) {
         do {
           prevIndex = Math.floor(Math.random() * playlistToUse.length);
         } while (prevIndex === playlistIndex && playlistToUse.length > 1);
       } else {
         prevIndex = playlistIndex - 1;
         
-        // Handle wraparound for repeat all mode
         if (prevIndex < 0) {
-          if (repeatMode === 'all') {
-            prevIndex = playlistToUse.length - 1; // Go to last song
+          if (currentRepeat === 'all' || currentRepeat === 'one') {
+            prevIndex = playlistToUse.length - 1;
           } else {
-            prevIndex = 0; // Stay at first song
+            prevIndex = 0;
           }
         }
       }
       
       const prevSong = playlistToUse[prevIndex];
+      if (!prevSong) return;
       
-      // Update the active playlist if it exists
       if (currentPlaylist) {
-        const updatedPlaylist = {
+        setActivePlaylist({
           ...currentPlaylist,
           currentIndex: prevIndex
-        };
-        setActivePlaylist(updatedPlaylist);
+        });
       }
       
       setQueueIndex(prevIndex);
@@ -838,7 +1000,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
     
     // Filter out invalid songs
-    const validPlaylist = playlist.filter(song => song && song.id && song.name);
+    const validPlaylist = playlist.filter(song => song && (song.id || (song as any)._id) && (song.name || (song as any).title));
     if (validPlaylist.length === 0) {
       console.error('[Player] No valid songs in playlist');
       setError('No valid songs to play');
@@ -884,8 +1046,35 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  const savePlaylist = (playlist: Playlist) => {
-    try {
+  // Queue management helpers
+  const addToQueue = (song: Song) => {
+    setQueue(prev => [...prev, song]);
+  };
+
+  const removeFromQueue = (index: number) => {
+    setQueue(prev => {
+      const next = prev.filter((_, i) => i !== index);
+      if (index < queueIndexRef.current) {
+        setQueueIndex(qi => Math.max(0, qi - 1));
+      }
+      return next;
+    });
+  };
+
+  const reorderQueue = (from: number, to: number) => {
+    setQueue(prev => {
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      const qi = queueIndexRef.current;
+      if (from === qi) setQueueIndex(to);
+      else if (from < qi && to >= qi) setQueueIndex(qi - 1);
+      else if (from > qi && to <= qi) setQueueIndex(qi + 1);
+      return next;
+    });
+  };
+
+  const savePlaylist = (playlist: Playlist) => {    try {
       // Check if playlist already exists
       const existingIndex = savedPlaylists.findIndex(p => p.id === playlist.id);
       
@@ -894,15 +1083,24 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const updatedPlaylists = [...savedPlaylists];
         updatedPlaylists[existingIndex] = playlist;
         setSavedPlaylists(updatedPlaylists);
-        console.log('[Playlist] Updated existing playlist:', playlist.name);
+        // Removed verbose logging for cleaner console
       } else {
         // Add new playlist
         setSavedPlaylists(prev => [...prev, playlist]);
-        console.log('[Playlist] Saved new playlist:', playlist.name);
+        // Removed verbose logging for cleaner console
       }
     } catch (error) {
       console.error('[Playlist] Error saving playlist:', error);
       setError('Failed to save playlist');
+    }
+  };
+
+  const deletePlaylist = (playlistId: string) => {
+    try {
+      setSavedPlaylists(prev => prev.filter(p => p.id !== playlistId));
+      toast.success('Playlist removed');
+    } catch (error) {
+      console.error('[Playlist] Error deleting playlist:', error);
     }
   };
 
@@ -928,8 +1126,14 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setActivePlaylist,
         setRepeatMode,
         setIsShuffle,
+        toggleRepeat,
+        toggleShuffle,
         setPlaylistAndPlay,
         savePlaylist,
+        deletePlaylist,
+        addToQueue,
+        removeFromQueue,
+        reorderQueue,
         error,
         setError,
         likedSongs,
@@ -945,6 +1149,12 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         audioProcessingEnabled,
         setAudioProcessingEnabled,
         audioProcessor,
+        // Sleep Timer
+        sleepTimerOption,
+        sleepTimerRemaining,
+        setSleepTimerOption,
+        cancelSleepTimer,
+        extendSleepTimer,
       }}
     >
       {children}

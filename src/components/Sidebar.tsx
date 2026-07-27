@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Home, 
   Search, 
@@ -30,7 +30,12 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false, onToggle }) => {
   const location = useLocation();
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  // Default to Dark Mode for all new and existing users
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    const saved = localStorage.getItem('theme');
+    if (saved) return saved === 'dark';
+    return true; // Default DARK mode
+  });
   const [selectedTracks, setSelectedTracks] = useState<Song[]>([]);
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
   const { isPlaying, togglePlayPause, currentSong, likedSongs } = useMusic();
@@ -44,10 +49,18 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false, onToggle }) => {
     ...(isAdmin ? [{ icon: Shield, label: 'Admin Dashboard', path: '/admin' }] : []),
   ];
 
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [isDarkMode]);
+
   const toggleTheme = () => {
-    setIsDarkMode(!isDarkMode);
-    // In a real app, you would update the theme here
-    document.documentElement.classList.toggle('dark', !isDarkMode);
+    setIsDarkMode(prev => !prev);
   };
 
   const handleSelectionChange = (tracks: Song[]) => {
@@ -62,87 +75,106 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false, onToggle }) => {
     }
   };
 
+  const handleNavClick = () => {
+    if (window.innerWidth < 768 && !isCollapsed && onToggle) {
+      onToggle();
+    }
+  };
+
   return (
-    <motion.aside 
-      className={cn(
-        "bg-card border-r border-border h-full flex flex-col",
-        isCollapsed ? "w-20" : "w-64"
+    <>
+      {/* Mobile Dark Backdrop Overlay when sidebar is open on mobile */}
+      {!isCollapsed && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 md:hidden"
+          onClick={onToggle}
+          aria-hidden="true"
+        />
       )}
-      animate={{ width: isCollapsed ? 80 : 256 }}
-      transition={{ duration: 0.3, ease: "easeInOut" }}
-    >
-      <div className="p-4">
-        <div className="flex items-center gap-2">
-          {isCollapsed ? (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.2 }}
-            >
-              <img 
-                src="/logo.jpg" 
-                alt="AudioNova Logo" 
-                className="h-8 w-8 object-contain"
-              />
-            </motion.div>
-          ) : (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.2 }}
-            >
-              <img 
-                src="/logo.jpg" 
-                alt="AudioNova Logo" 
-                className="h-8 w-auto"
-              />
-            </motion.div>
-          )}
+
+      <motion.aside 
+        className={cn(
+          "bg-card border-r border-border h-full flex flex-col z-50 transition-all duration-300",
+          "fixed inset-y-0 left-0 md:relative md:inset-auto",
+          isCollapsed ? "-translate-x-full md:translate-x-0 md:w-20" : "translate-x-0 w-64 md:w-64"
+        )}
+        animate={{ width: window.innerWidth >= 768 ? (isCollapsed ? 80 : 256) : 256 }}
+        transition={{ duration: 0.3, ease: "easeInOut" }}
+      >
+        <div className="p-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {isCollapsed ? (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.2 }}
+              >
+                <Link to="/landing" title="View Landing Page" onClick={handleNavClick}>
+                  <img 
+                    src="/logo.jpg" 
+                    alt="AudioNova Logo" 
+                    className="h-8 w-8 object-contain rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
+                  />
+                </Link>
+              </motion.div>
+            ) : (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.2 }}
+              >
+                <Link to="/landing" title="View Landing Page" onClick={handleNavClick}>
+                  <img 
+                    src="/logo.jpg" 
+                    alt="AudioNova Logo" 
+                    className="h-8 w-auto cursor-pointer hover:opacity-80 transition-opacity"
+                  />
+                </Link>
+              </motion.div>
+            )}
+          </div>
+
+          {/* Close button for mobile drawer */}
+          <button
+            onClick={onToggle}
+            className="p-1 rounded-lg text-muted-foreground hover:text-foreground md:hidden"
+            title="Close menu"
+          >
+            <ChevronLeft className="w-6 h-6" />
+          </button>
         </div>
-      </div>
-      
-      <nav className="flex-1 px-3">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = location.pathname === item.path;
-          return (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={cn(
-                'flex items-center gap-3 px-3 py-3 rounded-lg mb-2 transition-colors',
-                isActive
-                  ? 'bg-red-500 text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-accent hover:text-foreground'
-              )}
-            >
-              <Icon className="w-5 h-5" />
-              {!isCollapsed && (
-                <div className="flex items-center justify-between flex-1">
-                  <motion.span 
-                    className="font-medium"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: isCollapsed ? 0 : 1 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    {item.label}
-                  </motion.span>
-                  {item.count !== undefined && item.count > 0 && (
-                    <motion.span 
-                      className="bg-red-500 text-primary-foreground text-xs rounded-full px-2 py-0.5 ml-2"
-                      initial={{ scale: 0 }}
-                      animate={{ scale: isCollapsed ? 0 : 1 }}
-                      transition={{ duration: 0.2 }}
-                    >
-                      {item.count}
-                    </motion.span>
-                  )}
-                </div>
-              )}
-            </Link>
-          );
-        })}
-      </nav>
+
+        <nav className="flex-1 px-3">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = location.pathname === item.path;
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                onClick={handleNavClick}
+                className={cn(
+                  'flex items-center gap-3 px-3 py-3 rounded-lg mb-2 transition-colors',
+                  isActive
+                    ? 'bg-red-500 text-primary-foreground font-semibold'
+                    : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                )}
+              >
+                <Icon className="w-5 h-5 flex-shrink-0" />
+                {(!isCollapsed || window.innerWidth < 768) && (
+                  <div className="flex items-center justify-between flex-1">
+                    <span className="font-medium">{item.label}</span>
+                    {item.count !== undefined && item.count > 0 && (
+                      <span className="bg-red-500 text-primary-foreground text-xs rounded-full px-2 py-0.5 ml-2 font-bold">
+                        {item.count}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </Link>
+            );
+          })}
+        </nav>
       
       {/* Sidebar Quick Actions */}
       <SidebarQuickActions
@@ -264,6 +296,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false, onToggle }) => {
         </Button>
       </div>
     </motion.aside>
+  </>
   );
 };
 

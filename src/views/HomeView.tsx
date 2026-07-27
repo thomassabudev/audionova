@@ -1,4 +1,5 @@
 // HomeView.tsx
+import { getPublicFeaturedSongs, type FeaturedSong as AdminFeaturedSong } from '@/services/adminApi';
 import React, { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
@@ -27,20 +28,19 @@ const filterBadCovers = (songs: Song[], sectionName: string): Song[] => {
   const filtered = songs.filter(song => {
     const imageUrl = normalizeSongImage(song) || normalizeSongImageUtil(song);
     
+    // Removed verbose logging for cleaner console
     if (!imageUrl) {
-      console.log(`[${sectionName}] Filtering out (no image):`, song.name);
       return false;
     }
     
     if (isLikelyWrongImage(imageUrl, song)) {
-      console.log(`[${sectionName}] Filtering out (bad cover):`, song.name, imageUrl);
       return false;
     }
     
     return true;
   });
   
-  console.log(`[${sectionName}] Cover filter: ${beforeCount} → ${filtered.length} (removed ${beforeCount - filtered.length})`);
+  // Removed verbose logging for cleaner console
   return filtered;
 };
 import { getSongDetails } from '@/services/jiosaavnApi';
@@ -51,6 +51,9 @@ import Greeting from '@/components/Greeting';
 import TrendingSongsSection from '@/components/TrendingSongsSection';
 import ErrorBoundary, { ErrorFallback } from '@/components/ErrorBoundary';
 import NowPlayingSection from '@/components/NowPlayingSection';
+import { useSocial } from '@/context/SocialContext';
+import { getRecommendations, isDevotionalOrReligious } from '@/services/recommendationService';
+import { enforceCrossMovieVariety } from '@/utils/deduplication';
 
 interface Playlist {
   id: string;
@@ -110,7 +113,7 @@ const fetchHighResImages = async (songs: Song[]): Promise<Song[]> => {
 
   if (needHighRes.length === 0) return songs;
 
-  console.log(`[HighRes] Fetching ${needHighRes.length} song details for better images...`);
+  // Removed verbose logging for cleaner console
 
   // Batch fetch with improved error handling and delays
   const results = await Promise.allSettled(
@@ -127,7 +130,7 @@ const fetchHighResImages = async (songs: Song[]): Promise<Song[]> => {
           if (hiResImage && !isLikelyWrongImage(hiResImage, details)) {
             song.image = hiResImage as any;
             setCachedImage(song.id, hiResImage);
-            console.log(`[HighRes] Updated image for: ${song.name}`);
+            // Removed verbose logging for cleaner console
             return { success: true, song: song.name };
           }
         }
@@ -156,9 +159,7 @@ const fetchHighResImages = async (songs: Song[]): Promise<Song[]> => {
   // Log summary of results
   const successful = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
   const failed = results.length - successful;
-  if (failed > 0) {
-    console.log(`[HighRes] Completed: ${successful} successful, ${failed} failed`);
-  }
+  // Removed verbose logging for cleaner console
 
   // Apply cached images to remaining songs
   songs.forEach(s => {
@@ -222,6 +223,51 @@ const HomeView: React.FC = () => {
   // Show-all toggles
   const [showAllNewReleases, setShowAllNewReleases] = useState(false);
   const [showAllRecentlyPlayed, setShowAllRecentlyPlayed] = useState(false);
+  const [showAllForYou, setShowAllForYou] = useState(false);
+
+  // ── For You Recommendations ────────────────────────────────────────────
+  const { likedSongs } = useMusic();
+  const { recentlyPlayed: socialHistory } = useSocial();
+  const [forYouSongs, setForYouSongs] = useState<any[]>([]);
+  const [forYouLoading, setForYouLoading] = useState(false);
+
+  // ── Featured Songs (Admin curated) ──────────────────────────────────────
+  const [featuredSongs, setFeaturedSongs] = useState<AdminFeaturedSong[]>([]);
+
+  useEffect(() => {
+    getPublicFeaturedSongs()
+      .then(res => { if (res.success) setFeaturedSongs(res.songs); })
+      .catch(() => {});
+  }, []);
+
+  const fetchForYou = useCallback(async () => {
+    setForYouLoading(true);
+    try {
+      const recs = await getRecommendations(likedSongs as any, socialHistory, 20);
+      const secularRecs = recs.filter(s => !isDevotionalOrReligious(s));
+      const variedRecs = enforceCrossMovieVariety(secularRecs as any);
+      setForYouSongs(variedRecs.slice(0, 20));
+    } catch {
+      setForYouSongs([]);
+    } finally {
+      setForYouLoading(false);
+    }
+  }, [likedSongs, socialHistory]);
+
+  useEffect(() => {
+    // Initial fetch for "For You"
+    const timer = setTimeout(() => fetchForYou(), 1500);
+
+    // Auto refresh recommendations every 3 minutes for fresh content rotation
+    const interval = setInterval(() => {
+      fetchForYou();
+    }, 180000);
+
+    return () => {
+      clearTimeout(timer);
+      clearInterval(interval);
+    };
+  }, [fetchForYou]);
 
   const [showAllMalayalam, setShowAllMalayalam] = useState(false);
   const [showAllTamil, setShowAllTamil] = useState(false);
@@ -254,7 +300,7 @@ const HomeView: React.FC = () => {
       // OPTIMIZED: Fetch only Malayalam trending first (fastest)
       const mal = await jiosaavnApi.getTrendingSongs?.() ?? [];
       
-      console.log('Fetched Malayalam songs:', mal.length);
+      // Removed verbose logging for cleaner console
 
       // Remove duplicates using enhanced deduplication
       const unique = dedupeSongs(mal);
@@ -273,7 +319,7 @@ const HomeView: React.FC = () => {
         return isNotEnglish && isFullLength;
       });
 
-      console.log('[NewReleases] After filtering:', normalized.length, '→', newReleasesCandidates.length);
+      // Removed verbose logging for cleaner console
 
       // Take first 25 songs for faster loading
       let balanced = newReleasesCandidates.slice(0, 25);
@@ -284,7 +330,7 @@ const HomeView: React.FC = () => {
       // Filter out songs with bad cover art
       balanced = filterBadCovers(balanced as Song[], 'NewReleases') as any;
 
-      console.log('[NewReleases] Final songs count:', balanced.length);
+      // Removed verbose logging for cleaner console
       setNewReleases(balanced as Song[]);
     } catch (err) {
       console.error('Failed to fetch new releases:', err);
@@ -316,7 +362,7 @@ const HomeView: React.FC = () => {
         return duration >= 90;
       });
 
-      console.log('[Trending] After filtering:', normalized.length, '→', fullLengthSongs.length);
+      // Removed verbose logging for cleaner console
 
       // Take first 25 songs for faster loading
       let balanced = fullLengthSongs.slice(0, 25);
@@ -401,7 +447,7 @@ const HomeView: React.FC = () => {
         return isMalayalam && isFullLength;
       });
 
-      console.log('[Malayalam] After filtering:', normalized.length, '→', malayalamOnly.length);
+      // Removed verbose logging for cleaner console
 
       // Shuffle and limit to 25 for faster loading
       let shuffled = shuffleArray(malayalamOnly).slice(0, 25) as Song[];
@@ -442,7 +488,7 @@ const HomeView: React.FC = () => {
         return isTamil && isFullLength;
       });
 
-      console.log('[Tamil] After filtering:', normalized.length, '→', tamilOnly.length);
+      // Removed verbose logging for cleaner console
 
       // Shuffle and limit to 25 for faster loading
       let shuffled = shuffleArray(tamilOnly).slice(0, 25) as Song[];
@@ -489,7 +535,7 @@ const HomeView: React.FC = () => {
 
           // If any images were upgraded, save back to localStorage
           if (changed) {
-            console.log('[RecentlyPlayed] Migrated', normalized.length, 'songs to high-quality images');
+            // Removed verbose logging for cleaner console
             try {
               localStorage.setItem('recentlyPlayed', JSON.stringify(normalized));
             } catch (e) {
@@ -733,7 +779,7 @@ const HomeView: React.FC = () => {
         >
 
         {/* OPTIMIZED: Simplified sticky header without heavy backdrop blur */}
-        <div className="sticky top-0 z-10 bg-background border-b border-border px-6 md:px-8 lg:px-12 py-4">
+        <div className="sticky top-0 z-30 bg-background border-b border-border px-6 md:px-8 lg:px-12 py-4">
           <Greeting />
         </div>
 
@@ -801,6 +847,131 @@ const HomeView: React.FC = () => {
           <div className="mt-8">
             <NowPlayingSection />
           </div>
+
+          {/* ── Featured by Admin ────────────────────────────────────── */}
+          {featuredSongs.length > 0 && (
+            <div className="mt-8">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-2xl">⭐</span>
+                <div>
+                  <h2 className="text-xl md:text-2xl font-bold text-foreground">Featured Picks</h2>
+                  <p className="text-sm text-muted-foreground">Handpicked by the AudioNova team</p>
+                </div>
+              </div>
+              <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-2">
+                {featuredSongs.map(song => {
+                  const imgSrc = typeof song.image === 'string'
+                    ? song.image
+                    : Array.isArray(song.image)
+                      ? (typeof song.image[song.image.length - 1] === 'string'
+                          ? song.image[song.image.length - 1]
+                          : (song.image[song.image.length - 1] as any)?.link)
+                      : null;
+                  return (
+                    <div
+                      key={song._id}
+                      className="flex-shrink-0 w-36 cursor-pointer group"
+                      onClick={() => {
+                        if (song.songId) {
+                          setPlaylistAndPlay([
+                            {
+                              id: song.songId,
+                              name: song.name,
+                              primaryArtists: song.primaryArtists || '',
+                              image: song.image as any,
+                              url: song.url || '',
+                              downloadUrl: song.downloadUrl as any,
+                              duration: song.duration || 0,
+                            }
+                          ], 0);
+                        }
+                      }}
+                    >
+                      <div className="relative mb-2">
+                        <div className="w-36 h-36 rounded-xl overflow-hidden bg-white/5 shadow-lg">
+                          {imgSrc ? (
+                            <img src={imgSrc} alt={song.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-4xl">🎵</div>
+                          )}
+                        </div>
+                        <div className="absolute top-1.5 left-1.5">
+                          <span className="bg-amber-400 text-amber-900 text-[10px] font-bold px-1.5 py-0.5 rounded-md">⭐ Admin Pick</span>
+                        </div>
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 rounded-xl transition-colors flex items-center justify-center">
+                          <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 rounded-full w-10 h-10 flex items-center justify-center shadow-lg">
+                            <svg className="w-5 h-5 text-black ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-sm font-semibold truncate">{song.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">{song.primaryArtists}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ── For You – Personalized Recommendations ──────────────────── */}
+          {(forYouSongs.length > 0 || forYouLoading) && (
+            <div className="mt-8">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-xl md:text-2xl font-bold text-foreground flex items-center gap-2">
+                    <span>🎵</span> For You
+                  </h2>
+                  <p className="text-sm text-muted-foreground mt-0.5">Recommended based on your listening</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={fetchForYou}
+                    disabled={forYouLoading}
+                    className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                    title="Refresh recommendations"
+                  >
+                    {forYouLoading ? (
+                      <motion.div
+                        className="w-4 h-4 border-2 border-red-500/30 border-l-red-500 rounded-full"
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                      />
+                    ) : (
+                      <RefreshCw className="w-4 h-4" />
+                    )}
+                  </Button>
+
+                  {forYouSongs.length > 6 && (
+                    <Button
+                      variant="ghost"
+                      className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                      onClick={() => setShowAllForYou(!showAllForYou)}
+                    >
+                      {showAllForYou ? 'Show Less' : 'See All'}
+                    </Button>
+                  )}
+                </div>
+              </div>
+              {forYouLoading ? (
+                <LoadingGrid count={6} />
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                  {(showAllForYou ? forYouSongs : forYouSongs.slice(0, 6)).map((song, i) => (
+                    <SongCard
+                      key={`foryou-${song.id}-${i}`}
+                      song={song}
+                      playlist={forYouSongs}
+                      index={i}
+                      showNewBadge={false}
+                      showLanguageBadge={true}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Trending Now - Grid Layout with Sophisticated Features */}
           <div className="mt-8">

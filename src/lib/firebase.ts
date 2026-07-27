@@ -11,7 +11,10 @@ const auth: Auth = getAuth(app);
 // Google Auth Provider with popup-optimized configuration
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({
-  prompt: 'select_account'
+  prompt: 'select_account',
+  // Add popup-specific parameters
+  display: 'popup',
+  access_type: 'online'
 });
 
 // Request only essential scopes

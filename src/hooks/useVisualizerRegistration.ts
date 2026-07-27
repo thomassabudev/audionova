@@ -20,8 +20,7 @@ export function useRegisterVisualizer(
           if (canvasRef.current) {
             idRef.current = visualizerManager.registerCanvas(canvasRef.current);
           }
-        } catch (e) {
-          console.warn('[Visualizer] Failed to initialize, using fallback:', e);
+        } catch {
           // Fallback: still register canvas for animation
           if (!mounted) return;
           if (canvasRef.current) {

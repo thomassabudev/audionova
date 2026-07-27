@@ -2,12 +2,11 @@
  * Trending Service
  * Handles fetching, caching, and processing of trending songs data
  */
-
 import { jiosaavnApi } from './jiosaavnApi';
+import { isDevotionalOrReligious } from './recommendationService';
 import {
   computeTrendScore,
   determineBadges,
-  mergeAndDedupe,
   calculateDeltas,
   DEFAULT_TRENDING_CONFIG,
   type TrendingSong,
@@ -16,7 +15,7 @@ import {
 } from '@/utils/trending';
 import { isLikelyWrongImage, normalizeSongImage } from '@/utils/songImage';
 
-const CACHE_KEY = 'trending_songs_v2'; // Incremented to force cache invalidation
+const CACHE_KEY = 'trending_songs_v2';
 const HISTORY_KEY = 'trending_history_v2';
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 const HISTORY_RETENTION = 72 * 60 * 60 * 1000; // 72 hours
@@ -50,17 +49,15 @@ class TrendingService {
     forceRefresh?: boolean;
     languages?: string[];
   }): Promise<TrendingSong[]> {
-    const { limit = 25, forceRefresh = false, languages } = options || {}; // Changed default to 25
+    const { limit = 25, forceRefresh = false, languages } = options || {};
 
     // If force refresh, clear ALL caches (memory + localStorage)
     if (forceRefresh) {
-      console.log('[TrendingService] Force refresh - clearing ALL caches');
-      this.clearCache(); // Use the clearCache method
+      this.clearCache();
     }
 
     // Return cached data if valid and not forcing refresh
     if (!forceRefresh && this.cache && this.isCacheValid()) {
-      console.log('[TrendingService] Returning cached data');
       let songs = this.cache.songs;
       
       // Filter by languages if specified
@@ -71,20 +68,18 @@ class TrendingService {
           )
         );
       }
-      
       return songs.slice(0, limit);
     }
 
     // If already fetching and not force refresh, return the existing promise
     if (this.isFetching && this.fetchPromise && !forceRefresh) {
-      console.log('[TrendingService] Fetch in progress, waiting...');
       return this.fetchPromise;
     }
 
     // Fetch new data
     this.isFetching = true;
     this.fetchPromise = this.fetchAndProcess(limit, languages);
-
+    
     try {
       const result = await this.fetchPromise;
       return result;
@@ -102,8 +97,6 @@ class TrendingService {
     languages?: string[]
   ): Promise<TrendingSong[]> {
     try {
-      console.log('[TrendingService] Fetching trending songs from APIs...');
-      
       // Fetch from all language endpoints with better error handling
       const [mal, ta, hi, en] = await Promise.all([
         jiosaavnApi.getTrendingSongs().catch((err) => {
@@ -124,20 +117,12 @@ class TrendingService {
         }),
       ]);
 
-      console.log('[TrendingService] Fetched:', {
-        malayalam: mal.length,
-        tamil: ta.length,
-        hindi: hi.length,
-        english: en.length,
-      });
-
       // Check if we have any data at all
       const totalFetched = mal.length + ta.length + hi.length + en.length;
       if (totalFetched === 0) {
         console.warn('[TrendingService] No data fetched from any API');
         // Return cached data if available
         if (this.cache && this.cache.songs.length > 0) {
-          console.log('[TrendingService] Returning stale cached data (no fresh data available)');
           return this.cache.songs.slice(0, limit);
         }
         throw new Error('No trending data available from any source');
@@ -154,25 +139,16 @@ class TrendingService {
         .sort(() => Math.random() - 0.5)
         .sort(() => Math.random() - 0.5);
 
-      console.log('[TrendingService] Shuffled arrays for variety');
-
       // Balance languages - take equal amounts from each language
       // For 3 main languages (Malayalam, Tamil, Hindi) - skip English for now
       const songsPerLanguage = Math.ceil(limit / 3); // Divide equally among 3 languages
-      
       const balancedMal = shuffleMal.slice(0, songsPerLanguage);
       const balancedTa = shuffleTa.slice(0, songsPerLanguage);
       const balancedHi = shuffleHi.slice(0, songsPerLanguage);
 
-      console.log('[TrendingService] Balanced selection (3 languages):', {
-        malayalam: balancedMal.length,
-        tamil: balancedTa.length,
-        hindi: balancedHi.length,
-      });
-
       // Combine balanced selections and deduplicate by ID AND name
       const combined = [...balancedMal, ...balancedTa, ...balancedHi];
-      
+
       // Enhanced deduplication - by ID and similar names
       const uniqueMap = new Map<string, any>();
       const seenNames = new Set<string>();
@@ -186,43 +162,41 @@ class TrendingService {
         
         // Skip if we've seen a very similar name
         if (seenNames.has(normalizedName)) {
-          console.log('[TrendingService] Skipping duplicate name:', song.name);
           continue;
         }
         
         uniqueMap.set(song.id, song);
         seenNames.add(normalizedName);
       }
-      
+
       let unique = Array.from(uniqueMap.values());
 
       // Enhanced filtering: Cover art + Recency + Quality
-      const beforeFilterCount = unique.length;
       const currentYear = new Date().getFullYear();
       const twoYearsAgo = currentYear - 2;
-      
+
       unique = unique.filter(song => {
+        // Exclude religious, devotional, or caste songs
+        if (isDevotionalOrReligious(song)) return false;
+
         // 1. Cover art verification
         const imageUrl = normalizeSongImage(song);
         if (!imageUrl) {
-          console.log('[TrendingService] Filtering out (no image):', song.name);
           return false;
         }
         if (isLikelyWrongImage(imageUrl, song)) {
-          console.log('[TrendingService] Filtering out (bad cover):', song.name);
           return false;
         }
-        
+
         // 2. Recency check - Remove songs older than 2 years
         const releaseYear = song.year ? parseInt(song.year) : null;
         const releaseDate = song.releaseDate ? new Date(song.releaseDate).getFullYear() : null;
         const songYear = releaseYear || releaseDate;
         
         if (songYear && songYear < twoYearsAgo) {
-          console.log('[TrendingService] Filtering out (too old):', song.name, `(${songYear})`);
           return false;
         }
-        
+
         // 3. Filter out obvious reuploads/dubbed versions
         const name = song.name?.toLowerCase() || '';
         const suspiciousPatterns = [
@@ -243,23 +217,17 @@ class TrendingService {
         ];
         
         if (suspiciousPatterns.some(pattern => name.includes(pattern))) {
-          console.log('[TrendingService] Filtering out (reupload/dubbed):', song.name);
           return false;
         }
-        
+
         // 4. Quality check - Ensure minimum play count if available
         const playCount = parseInt(song.playCount) || 0;
         if (playCount > 0 && playCount < 1000) {
-          console.log('[TrendingService] Filtering out (low plays):', song.name, `(${playCount})`);
           return false;
         }
-        
+
         return true;
       });
-      
-      console.log(`[TrendingService] Enhanced filter: ${beforeFilterCount} → ${unique.length} songs (removed ${beforeFilterCount - unique.length})`);
-
-      console.log('[TrendingService] Combined unique songs:', unique.length);
 
       // Compute scores and enrich with metadata
       const scoringYear = new Date().getFullYear();
@@ -273,7 +241,7 @@ class TrendingService {
         const releaseYear = song.year ? parseInt(song.year) : null;
         const releaseDate = song.releaseDate ? new Date(song.releaseDate).getFullYear() : null;
         const songYear = releaseYear || releaseDate;
-        
+
         if (songYear) {
           if (songYear === scoringYear) {
             // 20% boost for current year songs
@@ -308,7 +276,7 @@ class TrendingService {
       // Strict interleaving - exactly equal distribution
       const interleaved: TrendingSong[] = [];
       const targetPerLanguage = Math.floor(limit / 3); // Exact division
-      
+
       // Take exactly targetPerLanguage from each language
       const malayalamSelected = malayalamSongs.slice(0, targetPerLanguage);
       const tamilSelected = tamilSongs.slice(0, targetPerLanguage);
@@ -320,14 +288,6 @@ class TrendingService {
         if (i < tamilSelected.length) interleaved.push(tamilSelected[i]);
         if (i < hindiSelected.length) interleaved.push(hindiSelected[i]);
       }
-
-      console.log('[TrendingService] Strict interleaved distribution:', {
-        malayalam: malayalamSelected.length,
-        tamil: tamilSelected.length,
-        hindi: hindiSelected.length,
-        total: interleaved.length,
-        targetPerLanguage,
-      });
 
       // Calculate rank deltas
       const previousSongs = this.cache?.songs || [];
@@ -344,8 +304,6 @@ class TrendingService {
       };
       this.saveToLocalStorage();
 
-      console.log('[TrendingService] Processed trending songs:', withDeltas.length);
-
       // Filter by languages if specified
       let result = withDeltas;
       if (languages && languages.length > 0) {
@@ -359,13 +317,10 @@ class TrendingService {
       return result.slice(0, limit);
     } catch (error) {
       console.error('[TrendingService] Error fetching trending songs:', error);
-
       // Return cached data if available (stale data is better than no data)
       if (this.cache) {
-        console.log('[TrendingService] Returning stale cached data due to error');
         return this.cache.songs.slice(0, limit);
       }
-
       throw error;
     }
   }
@@ -470,7 +425,6 @@ class TrendingService {
     // Also clear old cache versions
     localStorage.removeItem('trending_songs_v1');
     localStorage.removeItem('trending_history_v1');
-    console.log('[TrendingService] All caches cleared');
   }
 
   /**
@@ -495,13 +449,11 @@ class TrendingService {
       const cachedData = localStorage.getItem(CACHE_KEY);
       if (cachedData) {
         this.cache = JSON.parse(cachedData);
-        console.log('[TrendingService] Loaded cache from localStorage');
       }
 
       const historyData = localStorage.getItem(HISTORY_KEY);
       if (historyData) {
         this.history = JSON.parse(historyData);
-        console.log('[TrendingService] Loaded history from localStorage');
       }
     } catch (error) {
       console.warn('[TrendingService] Failed to load from localStorage:', error);

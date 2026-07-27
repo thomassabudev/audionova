@@ -1,6 +1,7 @@
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
+const rateLimit = require('express-rate-limit');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const path = require('path');
@@ -9,16 +10,6 @@ require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 // MongoDB connection
 const { connectToMongoDB } = require('./config/mongodb');
 const User = require('./models/User');
-
-// Debug environment variables
-console.log('Current working directory:', process.cwd());
-console.log('Script directory:', __dirname);
-console.log('Environment variables file path:', path.resolve(__dirname, '.env'));
-console.log('Environment variables:');
-console.log('SPOTIFY_CLIENT_ID:', process.env.SPOTIFY_CLIENT_ID ? 'Set' : 'Not set');
-console.log('SPOTIFY_CLIENT_SECRET:', process.env.SPOTIFY_CLIENT_SECRET ? 'Set' : 'Not set');
-console.log('MONGODB_URI:', process.env.MONGODB_URI ? 'Set' : 'Not set');
-console.log('PORT:', process.env.PORT || 5009);
 
 const app = express();
 const PORT = process.env.PORT || 5009;
@@ -33,11 +24,45 @@ connectToMongoDB().then(() => {
 // Fallback in-memory user storage for when MongoDB is not available
 const fallbackUsers = [];
 
-app.use(cors());
-app.use(express.json());
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    // In development allow any localhost port
+    if (process.env.NODE_ENV !== 'production' && /^http:\/\/localhost(:\d+)?$/.test(origin)) {
+      return callback(null, true);
+    }
+    // In production restrict to FRONTEND_URL
+    const allowed = (process.env.FRONTEND_URL || 'http://localhost:5173').split(',').map(u => u.trim());
+    if (allowed.includes(origin)) return callback(null, true);
+    callback(new Error(`CORS: origin ${origin} not allowed`));
+  },
+  credentials: true,
+}));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// Rate limiters
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,
+  message: { success: false, error: 'Too many attempts, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  message: { success: false, error: 'Too many requests, please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Serve static files from the React app build directory
 app.use(express.static(path.join(__dirname, '../dist')));
+// Serve static uploads (uploaded songs, cover images, profile pictures)
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Spotify API credentials (you'll need to register your app at developer.spotify.com)
 const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
@@ -45,8 +70,12 @@ const SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
 const SPOTIFY_REDIRECT_URI = process.env.SPOTIFY_REDIRECT_URI || 'http://localhost:3000';
 // Note: SPOTIFY_REDIRECT_URI is required by Spotify but not used for Client Credentials flow
 
-// JWT secret - in production, use a strong secret and store it in environment variables
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+// JWT secret - must be set via environment variable
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET environment variable is not set. Server cannot start.');
+  process.exit(1);
+}
 
 // Import the jiosaavnApi for fallback
 const { JioSaavnAPI } = require('./services/jiosaavnApi');
@@ -77,6 +106,10 @@ app.use('/api/admin', adminRouter);
 // Add analytics routes
 const analyticsRouter = require('./routes/analytics');
 app.use('/api', analyticsRouter);
+
+// Add social graph routes (follow artists, play history)
+const socialRouter = require('./routes/social');
+app.use('/api/social', socialRouter);
 
 // Function to get Spotify access token
 async function getSpotifyAccessToken() {
@@ -208,14 +241,29 @@ async function getSpotifyPlaylistTracks(playlistId, accessToken) {
   }
 }
 
-// Function to search for a song on JioSaavn
+// Function to search for a song on JioSaavn using our local proxy
 async function searchSongOnJioSaavn(query) {
   try {
-    const response = await axios.get('https://jiosaavn-api-privatecvc2.vercel.app/search/songs', {
-      params: { query, limit: 1 }
+    const cleanQuery = query.replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '').trim();
+    const port = process.env.PORT || 5009;
+    const response = await axios.get(`http://localhost:${port}/api/jiosaavn/search/songs`, {
+      params: { query: cleanQuery || query, limit: 1 }
     });
-    
-    return response.data.data.results[0] || null;
+
+    const result = response.data?.data?.results?.[0];
+    if (result) {
+      return result;
+    }
+
+    if (cleanQuery.includes(' ')) {
+      const titleOnly = cleanQuery.split(' ')[0];
+      const fallbackRes = await axios.get(`http://localhost:${port}/api/jiosaavn/search/songs`, {
+        params: { query: titleOnly, limit: 1 }
+      });
+      return fallbackRes.data?.data?.results?.[0] || null;
+    }
+
+    return null;
   } catch (error) {
     console.error('Error searching on JioSaavn:', error.message);
     return null;
@@ -279,23 +327,40 @@ function authenticateToken(req, res, next) {
 }
 
 // API endpoint for user registration
-app.post('/api/auth/register', async (req, res) => {
+app.post('/api/auth/register', authLimiter, async (req, res) => {
   try {
     const { email, password, name } = req.body;
 
     // Validate input
     if (!email || !password || !name) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Email, password, and name are required' 
+      return res.status(400).json({
+        success: false,
+        error: 'Email, password, and name are required'
+      });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid email format'
+      });
+    }
+
+    // Validate name length
+    if (name.trim().length < 2 || name.trim().length > 50) {
+      return res.status(400).json({
+        success: false,
+        error: 'Name must be between 2 and 50 characters'
       });
     }
 
     // Validate password length
     if (password.length < 6) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Password must be at least 6 characters long' 
+      return res.status(400).json({
+        success: false,
+        error: 'Password must be at least 6 characters long'
       });
     }
 
@@ -393,7 +458,7 @@ app.post('/api/auth/register', async (req, res) => {
 });
 
 // API endpoint for user login
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', authLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -550,88 +615,152 @@ app.get('/api/test/spotify', async (req, res) => {
   }
 });
 
-// API endpoint to import Spotify playlist
-app.get('/api/import/spotify/:playlistId', async (req, res) => {
-  try {
-    const { playlistId } = req.params;
-    
-    // Check for common Spotify curated playlist patterns that won't work with Client Credentials
-    if (playlistId.startsWith('37i9dQZF1D') || playlistId.startsWith('37i9dQZEVX')) {
-      return res.status(400).json({
-        success: false,
-        error: 'Spotify curated playlists (like Discover Weekly, Daily Mix, etc.) cannot be imported using our current setup. Please try importing a public user-created playlist instead.'
-      });
+// Helper to scrape public Spotify playlist data from Embed page when official API fails (e.g. 403 Premium restriction)
+async function getSpotifyEmbedPlaylistData(playlistId) {
+  const axios = require('axios');
+  const url = `https://open.spotify.com/embed/playlist/${playlistId}`;
+  const response = await axios.get(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept-Language': 'en-US,en;q=0.9'
     }
-    
-    // Get Spotify access token
+  });
+
+  const html = response.data;
+  const match = html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/) ||
+                html.match(/<script id="initial-state" type="application\/json">([\s\S]*?)<\/script>/);
+
+  if (!match) {
+    throw new Error('Unable to extract playlist data from Spotify');
+  }
+
+  const data = JSON.parse(match[1].trim());
+  const entity = data.props?.pageProps?.state?.data?.entity;
+
+  if (!entity || !entity.trackList || entity.trackList.length === 0) {
+    throw new Error('Playlist is empty or private');
+  }
+
+  const convertedTracks = entity.trackList.map((item, idx) => {
+    const trackId = item.uid || (item.uri ? item.uri.split(':').pop() : `spotify-${playlistId}-${idx}`);
+    const audioUrl = item.audioPreview?.url || `https://open.spotify.com/track/${trackId}`;
+    const coverImage = entity.coverArt?.sources?.[0]?.url || item.images?.[0]?.url || null;
+
+    return {
+      id: trackId,
+      name: item.title || 'Unknown Track',
+      primaryArtists: item.subtitle || 'Unknown Artist',
+      album: {
+        id: `album-${playlistId}`,
+        name: entity.name || entity.title || 'Spotify Playlist',
+        url: ''
+      },
+      duration: item.duration ? Math.round(item.duration / 1000) : 180,
+      url: audioUrl,
+      downloadUrl: [
+        { quality: '320kbps', link: audioUrl },
+        { quality: '160kbps', link: audioUrl },
+        { quality: '96kbps', link: audioUrl },
+        { quality: '12kbps', link: audioUrl }
+      ],
+      image: coverImage ? [
+        { quality: '500x500', link: coverImage },
+        { quality: '150x150', link: coverImage }
+      ] : []
+    };
+  });
+
+  // Enrich tracks with JioSaavn search matches
+  const enrichedTracks = [];
+  for (const track of convertedTracks) {
+    try {
+      const searchQuery = `${track.name} ${track.primaryArtists.split(',')[0] || ''}`;
+      const jioSaavnMatch = await searchSongOnJioSaavn(searchQuery);
+      if (jioSaavnMatch && jioSaavnMatch.id) {
+        enrichedTracks.push({
+          ...jioSaavnMatch,
+          spotifyUrl: track.url,
+          album: track.album
+        });
+      } else {
+        enrichedTracks.push(track);
+      }
+    } catch {
+      enrichedTracks.push(track);
+    }
+  }
+
+  return {
+    id: playlistId,
+    name: entity.name || entity.title || 'Spotify Playlist',
+    description: entity.subtitle || '',
+    tracks: enrichedTracks,
+    image: entity.coverArt?.sources?.[0]?.url || null
+  };
+}
+
+// API endpoint to import Spotify playlist
+app.get('/api/import/spotify/:playlistId', apiLimiter, async (req, res) => {
+  const { playlistId } = req.params;
+
+  // Check for common Spotify curated playlist patterns that won't work
+  if (playlistId.startsWith('37i9dQZF1D') || playlistId.startsWith('37i9dQZEVX')) {
+    return res.status(400).json({
+      success: false,
+      error: 'Spotify curated playlists (like Discover Weekly, Daily Mix, etc.) cannot be imported using our current setup. Please try importing a public user-created playlist instead.'
+    });
+  }
+
+  try {
+    // Try Spotify Web API first
     const accessToken = await getSpotifyAccessToken();
-    
-    // Get playlist data
     const playlistData = await getSpotifyPlaylistTracks(playlistId, accessToken);
     
-    // Validate playlist data
     if (!playlistData || !playlistData.tracks || !playlistData.tracks.items) {
-      throw new Error('Invalid playlist data received from Spotify');
+      throw new Error('Invalid playlist data received from Spotify API');
     }
-    
-    console.log(`Successfully fetched playlist: ${playlistData.name} with ${playlistData.tracks.items.length} tracks`);
-    
-    // Convert tracks to JioSaavn format
+
     const convertedTracks = playlistData.tracks.items.map(item => {
-      // Ensure item and track exist
-      if (!item || !item.track) {
-        console.warn('Skipping invalid track item');
-        return null;
-      }
+      if (!item || !item.track) return null;
       return convertSpotifyToJioSaavn(item.track);
-    }).filter(track => track !== null); // Remove any null tracks
-    
-    console.log(`Converted ${convertedTracks.length} tracks to JioSaavn format`);
-    
-    // Try to find matching songs on JioSaavn
+    }).filter(Boolean);
+
     const enrichedTracks = [];
     for (const track of convertedTracks) {
       try {
-        // Create a search query with track name and primary artist
         const searchQuery = `${track.name} ${track.primaryArtists.split(',')[0] || ''}`;
         const jioSaavnMatch = await searchSongOnJioSaavn(searchQuery);
-        
-        if (jioSaavnMatch) {
-          // Use JioSaavn data but keep some Spotify metadata
-          enrichedTracks.push({
-            ...jioSaavnMatch,
-            spotifyUrl: track.url,
-            album: track.album
-          });
-        } else {
-          // Use converted Spotify data
-          enrichedTracks.push(track);
-        }
-      } catch (trackError) {
-        console.error('Error processing track:', trackError.message);
-        // Still add the track even if enrichment fails
+        enrichedTracks.push(jioSaavnMatch ? { ...jioSaavnMatch, spotifyUrl: track.url, album: track.album } : track);
+      } catch {
         enrichedTracks.push(track);
       }
     }
-    
-    console.log(`Enriched ${enrichedTracks.length} tracks`);
-    
-    res.json({
+
+    return res.json({
       success: true,
       playlist: {
         id: playlistData.id,
         name: playlistData.name,
         description: playlistData.description,
         tracks: enrichedTracks,
-        image: playlistData.images && playlistData.images[0] ? playlistData.images[0].url : null
+        image: playlistData.images?.[0]?.url || null
       }
     });
-  } catch (error) {
-    console.error('Error importing Spotify playlist:', error.message);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+  } catch (apiError) {
+    console.warn(`Spotify Official API failed (${apiError.message}), using fallback Embed Scraper...`);
+    try {
+      const fallbackPlaylist = await getSpotifyEmbedPlaylistData(playlistId);
+      return res.json({
+        success: true,
+        playlist: fallbackPlaylist
+      });
+    } catch (fallbackError) {
+      console.error('Spotify import fallback also failed:', fallbackError.message);
+      return res.status(500).json({
+        success: false,
+        error: `Import failed: ${fallbackError.message}`
+      });
+    }
   }
 });
 
@@ -657,6 +786,14 @@ app.get('/api/import/youtube/:playlistId', async (req, res) => {
 });
 
 // Trending endpoint is now handled by the trending router above
+
+// Add JioSaavn proxy routes (avoids browser CORS issues)
+const jiosaavnProxyRouter = require('./routes/jiosaavn-proxy');
+app.use('/api/jiosaavn', jiosaavnProxyRouter);
+
+// Add user data sync routes (liked songs, playlists)
+const userSyncRouter = require('./routes/user-sync');
+app.use('/api/sync', userSyncRouter);
 
 // Add a simple health check endpoint
 app.get('/api/health', (req, res) => {

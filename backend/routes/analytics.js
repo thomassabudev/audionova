@@ -1,5 +1,6 @@
 const express = require('express');
-const { verifyUser, requireAdmin } = require('../middleware/auth');
+const { verifyUser } = require('../middleware/auth');
+const { requireZeroTrustAdmin } = require('../middleware/zero-trust-auth');
 const mongoService = require('../services/mongoService');
 
 const router = express.Router();
@@ -8,65 +9,8 @@ const router = express.Router();
 let fallbackPlayHistory = [];
 let playIdCounter = 1;
 
-// Add some sample data for testing if no data exists
-const initializeSampleData = () => {
-  if (fallbackPlayHistory.length === 0) {
-    console.log('[Analytics] Initializing sample analytics data for testing');
-    const samplePlays = [
-      {
-        id: playIdCounter++,
-        userId: 'sample_user_1',
-        userEmail: 'user1@example.com',
-        songId: 'sample_song_1',
-        songTitle: 'Sample Song 1',
-        artist: 'Sample Artist 1',
-        duration: 180,
-        timestamp: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
-        date: new Date(Date.now() - 86400000).toISOString().split('T')[0]
-      },
-      {
-        id: playIdCounter++,
-        userId: 'sample_user_2',
-        userEmail: 'user2@example.com',
-        songId: 'sample_song_2',
-        songTitle: 'Sample Song 2',
-        artist: 'Sample Artist 2',
-        duration: 210,
-        timestamp: new Date(Date.now() - 43200000).toISOString(), // 12 hours ago
-        date: new Date(Date.now() - 43200000).toISOString().split('T')[0]
-      },
-      {
-        id: playIdCounter++,
-        userId: 'sample_user_1',
-        userEmail: 'user1@example.com',
-        songId: 'sample_song_1',
-        songTitle: 'Sample Song 1',
-        artist: 'Sample Artist 1',
-        duration: 180,
-        timestamp: new Date(Date.now() - 21600000).toISOString(), // 6 hours ago
-        date: new Date(Date.now() - 21600000).toISOString().split('T')[0]
-      },
-      {
-        id: playIdCounter++,
-        userId: 'sample_user_3',
-        userEmail: 'user3@example.com',
-        songId: 'sample_song_3',
-        songTitle: 'Sample Song 3',
-        artist: 'Sample Artist 3',
-        duration: 195,
-        timestamp: new Date().toISOString(), // Now
-        date: new Date().toISOString().split('T')[0]
-      }
-    ];
-    
-    fallbackPlayHistory = samplePlays;
-    playIdCounter = samplePlays.length + 1;
-    console.log('[Analytics] Sample data initialized:', fallbackPlayHistory.length, 'plays');
-  }
-};
+// NOTE: No sample/fake data. Only real user play data from MongoDB.
 
-// Initialize sample data on startup
-initializeSampleData();
 
 /**
  * POST /play/anonymous
@@ -91,21 +35,35 @@ router.post('/play/anonymous', async (req, res) => {
     }
 
     const playRecord = {
-      id: Date.now(),
+      eventType: 'song_play',
       userId: 'anonymous_' + Date.now(),
-      userEmail: 'anonymous@user.com',
-      songId,
-      songTitle: songTitle || 'Unknown',
-      artist: artist || 'Unknown',
-      duration: duration || 0,
-      timestamp: new Date().toISOString(),
-      date: new Date().toISOString().split('T')[0]
+      sessionId: `session_${Date.now()}`,
+      data: {
+        songId,
+        songTitle: songTitle || 'Unknown',
+        artist: artist || 'Unknown',
+        duration: duration || 0,
+        userEmail: 'anonymous@user.com'
+      },
+      timestamp: new Date()
     };
 
-    // Add to fallback storage
-    fallbackPlayHistory.push(playRecord);
-    console.log('[Analytics] Anonymous play recorded in fallback storage. Total plays:', fallbackPlayHistory.length);
-    console.log('[Analytics] Latest anonymous record:', playRecord);
+    try {
+      await mongoService.logEvent(playRecord);
+      console.log('[Analytics] Anonymous play recorded in MongoDB');
+    } catch (e) {
+      fallbackPlayHistory.push({
+        id: Date.now(),
+        userId: playRecord.userId,
+        userEmail: 'anonymous@user.com',
+        songId,
+        songTitle: songTitle || 'Unknown',
+        artist: artist || 'Unknown',
+        duration: duration || 0,
+        timestamp: new Date().toISOString(),
+        date: new Date().toISOString().split('T')[0]
+      });
+    }
 
     res.json({
       success: true,
@@ -261,7 +219,7 @@ router.post('/play', verifyUser, async (req, res) => {
  * GET /admin/analytics
  * Get analytics data (Admin only)
  */
-router.get('/admin/analytics', requireAdmin, async (req, res) => {
+router.get('/admin/analytics', requireZeroTrustAdmin, async (req, res) => {
   try {
     console.log('[Analytics] Admin analytics request from:', req.user.email);
     let playHistory = [];
@@ -375,7 +333,7 @@ router.get('/admin/analytics', requireAdmin, async (req, res) => {
  * GET /admin/analytics/test
  * Test endpoint to check analytics data (Admin only)
  */
-router.get('/admin/analytics/test', requireAdmin, async (req, res) => {
+router.get('/admin/analytics/test', requireZeroTrustAdmin, async (req, res) => {
   try {
     let playHistory = [];
     
@@ -414,7 +372,7 @@ router.get('/admin/analytics/test', requireAdmin, async (req, res) => {
  * GET /admin/analytics/users
  * Get detailed user analytics (Admin only)
  */
-router.get('/admin/analytics/users', requireAdmin, async (req, res) => {
+router.get('/admin/analytics/users', requireZeroTrustAdmin, async (req, res) => {
   try {
     let playHistory = [];
     
@@ -486,7 +444,7 @@ router.get('/admin/analytics/users', requireAdmin, async (req, res) => {
  * GET /admin/analytics/debug
  * Debug endpoint to check analytics system status (Admin only)
  */
-router.get('/admin/analytics/debug', requireAdmin, async (req, res) => {
+router.get('/admin/analytics/debug', requireZeroTrustAdmin, async (req, res) => {
   try {
     console.log('[Analytics] Debug request from admin:', req.user.email);
     
@@ -542,7 +500,7 @@ router.get('/admin/analytics/debug', requireAdmin, async (req, res) => {
  * DELETE /admin/analytics/sample-data
  * Clear sample analytics data (Admin only)
  */
-router.delete('/admin/analytics/sample-data', requireAdmin, async (req, res) => {
+router.delete('/admin/analytics/sample-data', requireZeroTrustAdmin, async (req, res) => {
   try {
     console.log('[Analytics] Clearing sample analytics data by admin:', req.user.email);
     

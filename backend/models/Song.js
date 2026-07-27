@@ -1,12 +1,21 @@
 const mongoose = require('mongoose');
 
 const songSchema = new mongoose.Schema({
-  // JioSaavn ID or other platform ID
+  // JioSaavn ID or other platform ID / Admin ID
   songId: {
     type: String,
     required: true,
-    unique: true
+    unique: true,
+    default: () => `admin_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`
   },
+  isAdminUploaded: {
+    type: Boolean,
+    default: false
+  },
+  filename: String,
+  filePath: String,
+  fileSize: Number,
+  uploadedBy: String,
   name: {
     type: String,
     required: true,

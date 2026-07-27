@@ -97,28 +97,20 @@ const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
         {isLoading ? (
           <div className="w-4 h-4 border-2 border-white/30 border-l-white rounded-full animate-spin"></div>
         ) : profilePicture ? (
-          <div className="relative w-full h-full">
-            <img 
-              src={profilePicture} 
-              alt={userName} 
-              className="w-full h-full object-cover" 
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                target.style.display = 'none';
-                // Show initials instead
-                const initialsSpan = target.parentElement?.querySelector('.initials-fallback') as HTMLElement;
-                if (initialsSpan) {
-                  initialsSpan.style.display = 'flex';
-                }
-              }}
-            />
-            <span 
-              className="initials-fallback w-full h-full flex items-center justify-center absolute inset-0"
-              style={{ display: 'none' }}
-            >
-              {getInitials(userName)}
-            </span>
-          </div>
+          <img 
+            src={profilePicture} 
+            alt={userName} 
+            className="w-full h-full object-cover" 
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              target.style.display = 'none';
+              // Show initials instead
+              const parent = target.parentElement;
+              if (parent) {
+                parent.innerHTML = `<span class="text-sm font-semibold">${getInitials(userName)}</span>`;
+              }
+            }}
+          />
         ) : (
           <span>{getInitials(userName)}</span>
         )}
@@ -141,28 +133,20 @@ const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
                   {isLoading ? (
                     <div className="w-4 h-4 border-2 border-white/30 border-l-white rounded-full animate-spin"></div>
                   ) : profilePicture ? (
-                    <div className="relative w-full h-full">
-                      <img 
-                        src={profilePicture} 
-                        alt={userName} 
-                        className="w-full h-full object-cover" 
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.style.display = 'none';
-                          // Show initials instead
-                          const initialsSpan = target.parentElement?.querySelector('.initials-fallback') as HTMLElement;
-                          if (initialsSpan) {
-                            initialsSpan.style.display = 'flex';
-                          }
-                        }}
-                      />
-                      <span 
-                        className="initials-fallback w-full h-full flex items-center justify-center absolute inset-0"
-                        style={{ display: 'none' }}
-                      >
-                        {getInitials(userName)}
-                      </span>
-                    </div>
+                    <img 
+                      src={profilePicture} 
+                      alt={userName} 
+                      className="w-full h-full object-cover" 
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                        // Show initials instead
+                        const parent = target.parentElement;
+                        if (parent) {
+                          parent.innerHTML = `<span class="text-sm font-semibold">${getInitials(userName)}</span>`;
+                        }
+                      }}
+                    />
                   ) : (
                     <span>{getInitials(userName)}</span>
                   )}

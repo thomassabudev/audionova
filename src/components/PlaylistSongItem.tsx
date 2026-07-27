@@ -5,6 +5,7 @@ import { useMusic } from '../context/MusicContext';
 import { useRegisterVisualizer } from '../hooks/useVisualizerRegistration';
 import type { Song } from '../services/jiosaavnApi';
 import { getHighestQualityImage } from '../services/jiosaavnApi';
+import PlayingEqualizerBadge from './PlayingEqualizerBadge';
 
 interface PlaylistSongItemProps {
   song: Song;
@@ -151,13 +152,7 @@ const PlaylistSongItem: React.FC<PlaylistSongItemProps> = ({
               {song.name}
             </p>
             {isCurrent && playing ? (
-              <canvas 
-                ref={mobileCanvasRef} 
-                className="mini-visual" 
-                width="48" 
-                height="18" 
-                aria-hidden 
-              />
+              <PlayingEqualizerBadge size="sm" />
             ) : isCurrent ? (
               <div className="flex items-center">
                 <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse mr-1" />
@@ -191,13 +186,7 @@ const PlaylistSongItem: React.FC<PlaylistSongItemProps> = ({
       <div className="hidden md:contents">
         <div className="col-span-1 flex items-center">
           {isCurrent && playing ? (
-            <canvas 
-              ref={desktopCanvasRef} 
-              className="mini-visual" 
-              width="48" 
-              height="18" 
-              aria-hidden 
-            />
+            <PlayingEqualizerBadge size="sm" />
           ) : isCurrent ? (
             <div className="w-4 h-4 flex items-center justify-center">
               <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>

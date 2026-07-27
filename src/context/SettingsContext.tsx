@@ -43,9 +43,31 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return savedSettings ? { ...DEFAULT_SETTINGS, ...JSON.parse(savedSettings) } : DEFAULT_SETTINGS;
   });
 
-  // Save settings to localStorage whenever they change
+  // Save settings to localStorage and apply themeMode to DOM
   useEffect(() => {
     localStorage.setItem('userSettings', JSON.stringify(settings));
+
+    // Apply themeMode to document.documentElement
+    const root = document.documentElement;
+    let isDark = true;
+
+    if (settings.themeMode === 'light') {
+      isDark = false;
+    } else if (settings.themeMode === 'dark') {
+      isDark = true;
+    } else if (settings.themeMode === 'system') {
+      isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+
+    if (isDark) {
+      root.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      root.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+
+    window.dispatchEvent(new Event('themeChange'));
   }, [settings]);
 
   const updateSettings = (newSettings: Partial<Settings>) => {

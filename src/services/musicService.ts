@@ -26,7 +26,7 @@ class MusicService {
         source: 'jiosaavn'
       }));
 
-      console.log(`[MusicService] Search completed: ${unifiedJioSaavnSongs.length} songs found`);
+      // Removed verbose logging for cleaner console
       
       return unifiedJioSaavnSongs;
     } catch (error) {
@@ -94,11 +94,11 @@ class MusicService {
     try {
       // Get trending songs from JioSaavn only (Gaana API disabled)
       const jiosaavnTrending = await jiosaavnApi.getTrendingSongs();
-      console.log('MusicService: JioSaavn returned', jiosaavnTrending.length, 'trending songs');
+      // Removed verbose logging for cleaner console
       
       // Log duration values
       jiosaavnTrending.slice(0, 5).forEach((song, index) => {
-        console.log(`Trending song ${index} duration:`, song.duration);
+        // Removed verbose logging for cleaner console
       });
       
       const unifiedJioSaavnSongs: UnifiedSong[] = jiosaavnTrending.map(song => ({
@@ -107,7 +107,7 @@ class MusicService {
       }));
 
       // Note: Gaana API is disabled to prevent console spam
-      console.log('MusicService: Returning', unifiedJioSaavnSongs.length, 'trending songs from JioSaavn');
+      // Removed verbose logging for cleaner console
       return unifiedJioSaavnSongs.slice(0, limit);
     } catch (error) {
       console.error('Error getting trending songs:', error);
@@ -125,14 +125,14 @@ class MusicService {
    */
   async getMalayalamRomanceSongs(limit: number = 20): Promise<UnifiedSong[]> {
     try {
-      console.log('MusicService: Getting Malayalam romance songs...');
+      // Removed verbose logging for cleaner console
       // Get Malayalam romantic songs from JioSaavn
       const jiosaavnRomance = await jiosaavnApi.getMalayalamRomanceSongs();
-      console.log('MusicService: JioSaavn returned', jiosaavnRomance.length, 'romance songs');
+      // Removed verbose logging for cleaner console
       
       // Log duration values
       jiosaavnRomance.slice(0, 5).forEach((song, index) => {
-        console.log(`Romance song ${index} duration:`, song.duration);
+        // Removed verbose logging for cleaner console
       });
       
       const unifiedJioSaavnSongs: UnifiedSong[] = jiosaavnRomance.map(song => ({
@@ -142,7 +142,7 @@ class MusicService {
 
       // For Gaana, we would implement similar logic if it had search capabilities
       // For now, we'll just return JioSaavn results
-      console.log('MusicService: Returning', unifiedJioSaavnSongs.length, 'unified romance songs');
+      // Removed verbose logging for cleaner console
       return [...unifiedJioSaavnSongs].slice(0, limit);
     } catch (error) {
       console.error('Error getting Malayalam romance songs:', error);
@@ -160,17 +160,17 @@ class MusicService {
    */
   async getTamilRomanceSongs(limit: number = 50): Promise<UnifiedSong[]> {
     try {
-      console.log('MusicService: Getting Tamil romance songs...');
+      // Removed verbose logging for cleaner console
       // Get Tamil romantic songs from JioSaavn
       const jiosaavnRomance = await jiosaavnApi.getTamilRomanceSongs();
-      console.log('MusicService: JioSaavn returned', jiosaavnRomance.length, 'Tamil romance songs');
+      // Removed verbose logging for cleaner console
       
       const unifiedJioSaavnSongs: UnifiedSong[] = jiosaavnRomance.map(song => ({
         ...song,
         source: 'jiosaavn'
       }));
 
-      console.log('MusicService: Returning', unifiedJioSaavnSongs.length, 'unified Tamil romance songs');
+      // Removed verbose logging for cleaner console
       return [...unifiedJioSaavnSongs].slice(0, limit);
     } catch (error) {
       console.error('Error getting Tamil romance songs:', error);
@@ -188,17 +188,17 @@ class MusicService {
    */
   async getHindiRomanceSongs(limit: number = 50): Promise<UnifiedSong[]> {
     try {
-      console.log('MusicService: Getting Hindi romance songs...');
+      // Removed verbose logging for cleaner console
       // Get Hindi romantic songs from JioSaavn
       const jiosaavnRomance = await jiosaavnApi.getHindiRomanceSongs();
-      console.log('MusicService: JioSaavn returned', jiosaavnRomance.length, 'Hindi romance songs');
+      // Removed verbose logging for cleaner console
       
       const unifiedJioSaavnSongs: UnifiedSong[] = jiosaavnRomance.map(song => ({
         ...song,
         source: 'jiosaavn'
       }));
 
-      console.log('MusicService: Returning', unifiedJioSaavnSongs.length, 'unified Hindi romance songs');
+      // Removed verbose logging for cleaner console
       return [...unifiedJioSaavnSongs].slice(0, limit);
     } catch (error) {
       console.error('Error getting Hindi romance songs:', error);
@@ -216,17 +216,17 @@ class MusicService {
    */
   async getHindiTrendingSongs(limit: number = 50): Promise<UnifiedSong[]> {
     try {
-      console.log('MusicService: Getting Hindi trending songs...');
+      // Removed verbose logging for cleaner console
       // Get Hindi trending songs from JioSaavn
       const jiosaavnTrending = await jiosaavnApi.getHindiTrendingSongs();
-      console.log('MusicService: JioSaavn returned', jiosaavnTrending.length, 'Hindi trending songs');
+      // Removed verbose logging for cleaner console
       
       const unifiedJioSaavnSongs: UnifiedSong[] = jiosaavnTrending.map(song => ({
         ...song,
         source: 'jiosaavn'
       }));
 
-      console.log('MusicService: Returning', unifiedJioSaavnSongs.length, 'unified Hindi trending songs');
+      // Removed verbose logging for cleaner console
       return [...unifiedJioSaavnSongs].slice(0, limit);
     } catch (error) {
       console.error('Error getting Hindi trending songs:', error);
@@ -260,7 +260,7 @@ class MusicService {
    */
   async getNewReleases(limit: number = 20, forceRefresh: boolean = false): Promise<UnifiedSong[]> {
     try {
-      console.log(`Fetching new releases with limit: ${limit}`);
+      // Removed verbose logging for cleaner console
       
       // Add cache-busting parameter if forceRefresh is true
       const cacheBuster = forceRefresh ? `&_=${new Date().getTime()}` : '';
@@ -276,7 +276,7 @@ class MusicService {
       }
       
       const data = await response.json();
-      console.log('New releases API response:', data);
+      // Removed verbose logging for cleaner console
       
       if (data.success) {
         // If we have data from our backend, convert it
@@ -309,11 +309,11 @@ class MusicService {
             source: 'jiosaavn' // Assuming all new releases are from JioSaavn
           }));
           
-          console.log(`Successfully converted ${songs.length} new releases from backend`);
+          // Removed verbose logging for cleaner console
           return songs;
         } else {
           // If no data from backend, fallback to JioSaavn API
-          console.log('No new releases from backend, falling back to JioSaavn API');
+          // Removed verbose logging for cleaner console
           return this.getJioSaavnNewReleases(limit);
         }
       } else {
@@ -333,7 +333,7 @@ class MusicService {
    */
   private async getJioSaavnNewReleases(limit: number = 20): Promise<UnifiedSong[]> {
     try {
-      console.log('Fetching new releases from JioSaavn API');
+      // Removed verbose logging for cleaner console
       
       // Use the same approach as in jiosaavnApi service to get better songs - INCLUDING ENGLISH
       const [malayalamSongs, tamilSongs, hindiSongs, englishSongs] = await Promise.all([
@@ -379,7 +379,7 @@ class MusicService {
         source: 'jiosaavn'
       }));
       
-      console.log(`Successfully fetched ${unifiedSongs.length} new releases from JioSaavn`);
+      // Removed verbose logging for cleaner console
       return unifiedSongs.slice(0, limit);
     } catch (error) {
       console.error('Error fetching new releases from JioSaavn:', error);
@@ -392,7 +392,7 @@ class MusicService {
    * Get sample new releases for testing when backend is not available
    */
   private getSampleNewReleases(limit: number = 20): UnifiedSong[] {
-    console.log('Returning sample new releases for testing');
+    // Removed verbose logging for cleaner console
     const sampleSongs: UnifiedSong[] = [
       // Malayalam Songs
       {

@@ -241,9 +241,7 @@ export const dedupeByNameAndArtist = <T extends { name?: string; primaryArtists?
     }
   }
   
-  if (duplicatesFound.length > 0) {
-    console.log(`[dedupeByNameAndArtist] Removed ${duplicatesFound.length} duplicates:`, duplicatesFound.slice(0, 5));
-  }
+  // Removed verbose logging for cleaner console
   
   return Array.from(map.values());
 };
@@ -256,11 +254,9 @@ export const dedupeSongs = <T extends { id?: string; name?: string; primaryArtis
   
   // First dedupe by ID
   const deduped = dedupeById(arr);
-  console.log(`[dedupeSongs] ID dedup: ${originalLength} → ${deduped.length}`);
   
   // Then dedupe by name and artist to catch same songs with different IDs
   const final = dedupeByNameAndArtist(deduped);
-  console.log(`[dedupeSongs] Name+Artist dedup: ${deduped.length} → ${final.length}`);
   
   return final;
 };

@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
 import { useMusic } from '../context/MusicContext';
 import PlaylistImportDialog from '../components/PlaylistImportDialog';
-import PlaylistView from '../components/PlaylistView';
+import PlaylistView, { type SongLike } from '../components/PlaylistView';
 import { Button } from '../components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { Heart, Music, Download, ListMusic, Play, Clock, Mail } from 'lucide-react';
+import { Heart, Music, Download, ListMusic, Play, Clock, Mail, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import EnhancedFullscreenPlaylistView from '../components/EnhancedFullscreenPlaylistView';
 
@@ -14,13 +13,38 @@ interface LibraryViewProps {
 }
 
 const LibraryView: React.FC<LibraryViewProps> = ({ onOpenExpandedPlayer }) => {
-  const { queue, likedSongs, savedPlaylists, playSong, setQueue } = useMusic();
+  const { queue, likedSongs, savedPlaylists, playSong, setQueue, deletePlaylist } = useMusic();
   const [activeTab, setActiveTab] = useState('queue');
   const [selectedPlaylist, setSelectedPlaylist] = useState<any | null>(null);
 
-  const formatDuration = (seconds: number) => {
+  const calculatePlaylistDuration = (tracks: any[]) => {
+    if (!Array.isArray(tracks) || tracks.length === 0) return 0;
+    return tracks.reduce((total, song) => {
+      let dur = 0;
+      if (typeof song.duration === 'number' && !isNaN(song.duration) && isFinite(song.duration)) {
+        dur = song.duration;
+      } else if (typeof song.duration === 'string') {
+        if (song.duration.includes(':')) {
+          const parts = song.duration.split(':');
+          dur = (parseInt(parts[0], 10) || 0) * 60 + (parseInt(parts[1], 10) || 0);
+        } else {
+          const parsed = Number(song.duration);
+          if (!isNaN(parsed) && isFinite(parsed)) dur = parsed;
+        }
+      }
+      return total + dur;
+    }, 0);
+  };
+
+  const formatPlaylistDuration = (seconds: number) => {
+    if (!seconds || isNaN(seconds) || !isFinite(seconds) || seconds <= 0) return '';
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
+    if (mins >= 60) {
+      const hrs = Math.floor(mins / 60);
+      const remMins = mins % 60;
+      return `${hrs} hr ${remMins} min`;
+    }
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
@@ -73,11 +97,11 @@ const LibraryView: React.FC<LibraryViewProps> = ({ onOpenExpandedPlayer }) => {
           <TabsContent value="queue" className="mt-0">
             {queue && queue.length > 0 ? (
               <PlaylistView 
-                songs={queue} 
+                songs={queue as unknown as SongLike[]} 
                 title="Queue" 
                 subtitle="Songs to be played next"
                 onSongImageClick={(song) => {
-                  // Play the song and notify parent to open expanded player
+                  playSong(song as any);
                   onOpenExpandedPlayer?.();
                 }}
               />
@@ -93,11 +117,11 @@ const LibraryView: React.FC<LibraryViewProps> = ({ onOpenExpandedPlayer }) => {
           <TabsContent value="liked" className="mt-0">
             {likedSongs && likedSongs.length > 0 ? (
               <PlaylistView 
-                songs={likedSongs} 
+                songs={likedSongs as unknown as SongLike[]} 
                 title="Liked Songs" 
                 subtitle="Your favorite tracks"
                 onSongImageClick={(song) => {
-                  // Play the song and notify parent to open expanded player
+                  playSong(song as any);
                   onOpenExpandedPlayer?.();
                 }}
               />
@@ -111,66 +135,99 @@ const LibraryView: React.FC<LibraryViewProps> = ({ onOpenExpandedPlayer }) => {
           </TabsContent>
 
           <TabsContent value="playlists" className="mt-0">
-            {savedPlaylists.length > 0 ? (
+            {savedPlaylists && savedPlaylists.length > 0 ? (
               <div>
-                <h3 className="text-xl font-semibold text-foreground mb-6">Saved Playlists</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {savedPlaylists.map((playlist, index) => (
-                    <motion.div
-                      key={`library-${playlist.id}`} 
-                      className="cursor-pointer"
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.1, duration: 0.3 }}
-                      whileHover={{ y: -5, transition: { duration: 0.2 } }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => setSelectedPlaylist(playlist)}
-                    >
-                      <Card className="overflow-hidden hover:bg-accent transition-colors group h-full flex flex-col">
-                        {playlist.image ? (
-                          <img 
-                            src={playlist.image} 
-                            alt={playlist.name} 
-                            className="w-full aspect-square object-cover"
-                          />
-                        ) : (
-                          <div className="w-full aspect-square bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">
-                            <Music className="w-12 h-12 text-white" />
-                          </div>
-                        )}
-                        <CardHeader className="p-4">
-                          <CardTitle className="text-lg font-semibold truncate">{playlist.name}</CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-4 pt-0 mt-auto">
-                          <div className="flex justify-between text-sm text-muted-foreground">
-                            <span>{playlist.tracks.length} songs</span>
-                            <span className="flex items-center gap-1">
-                              <Clock className="w-4 h-4" />
-                              {playlist.tracks.reduce((total, song) => total + (song.duration || 0), 0) > 0 
-                                ? formatDuration(playlist.tracks.reduce((total, song) => total + (song.duration || 0), 0)) 
-                                : '0:00'}
-                            </span>
-                          </div>
-                          <Button 
-                            className="w-full mt-4 opacity-0 group-hover:opacity-100 transition-opacity"
-                            variant="default"
-                            size="sm"
+                <h3 className="text-xl font-semibold text-foreground mb-4">Saved Playlists</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+                  {savedPlaylists.map((playlist, index) => {
+                    const totalSecs = calculatePlaylistDuration(playlist.tracks || []);
+                    const durationStr = formatPlaylistDuration(totalSecs);
+
+                    // Safely resolve cover image from string, string[], or ImageOption[] 
+                    const rawImg = playlist.image || (playlist.tracks && playlist.tracks[0]?.image);
+                    let coverSrc = '';
+                    if (typeof rawImg === 'string') {
+                      coverSrc = rawImg;
+                    } else if (Array.isArray(rawImg) && rawImg.length > 0) {
+                      const last = rawImg[rawImg.length - 1];
+                      coverSrc = typeof last === 'string' ? last : (last?.link || '');
+                    }
+
+                    return (
+                      <motion.div
+                        key={`library-${playlist.id || index}-${index}`} 
+                        className="group relative bg-card/60 hover:bg-accent/70 border border-border/40 rounded-xl p-3 transition-all duration-300 hover:shadow-xl flex flex-col h-full cursor-pointer"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.05, duration: 0.3 }}
+                        whileHover={{ y: -4, transition: { duration: 0.2 } }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => setSelectedPlaylist(playlist)}
+                      >
+                        {/* Playlist Cover */}
+                        <div className="relative aspect-square w-full rounded-lg overflow-hidden bg-muted flex items-center justify-center shadow-md">
+                          {coverSrc ? (
+                            <img 
+                              src={coverSrc} 
+                              alt={playlist.name || 'Playlist'} 
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-gradient-to-br from-red-500/80 via-purple-600/80 to-blue-600/80 flex items-center justify-center">
+                              <Music className="w-8 h-8 text-white" />
+                            </div>
+                          )}
+                          
+                          {/* Delete Button Overlay */}
+                          <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              // Set the entire playlist as the queue and play the first song
-                              console.log('Setting playlist tracks as queue:', playlist.tracks.length);
-                              setQueue(playlist.tracks);
-                              playSong(playlist.tracks[0]);
-
+                              deletePlaylist(playlist.id);
                             }}
+                            className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/60 hover:bg-red-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 z-10 shadow-lg hover:scale-110"
+                            title="Remove Playlist"
+                            aria-label="Remove playlist"
                           >
-                            <Play className="w-4 h-4 mr-2" />
-                            Play
-                          </Button>
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  ))}
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+
+                          {/* Play Button Overlay */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (playlist.tracks && playlist.tracks.length > 0) {
+                                setQueue(playlist.tracks);
+                                playSong(playlist.tracks[0]);
+                              }
+                            }}
+                            className="absolute bottom-2 right-2 w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-xl opacity-0 group-hover:opacity-100 group-hover:translate-y-0 translate-y-2 transition-all duration-300 hover:scale-105 hover:bg-emerald-600 z-10"
+                            aria-label="Play playlist"
+                          >
+                            <Play className="w-4 h-4 ml-0.5 fill-current" />
+                          </button>
+                        </div>
+
+                        {/* Title & Info */}
+                        <div className="mt-2.5 flex-1 flex flex-col justify-between min-w-0">
+                          <div>
+                            <h4 className="text-xs sm:text-sm font-bold text-foreground truncate group-hover:text-primary transition-colors">
+                              {playlist.name || 'Untitled Playlist'}
+                            </h4>
+                            <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
+                              {playlist.tracks?.length || 0} song{playlist.tracks?.length !== 1 ? 's' : ''}
+                            </p>
+                          </div>
+
+                          {durationStr ? (
+                            <div className="flex items-center gap-1 text-[10px] text-muted-foreground/80 mt-1.5 font-mono">
+                              <Clock className="w-3 h-3" />
+                              <span>{durationStr}</span>
+                            </div>
+                          ) : null}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
                 </div>
               </div>
             ) : (

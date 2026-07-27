@@ -1,16 +1,16 @@
-import React, { useRef } from 'react';
+import React from 'react';
 import { Play, Pause, Heart, MoreHorizontal } from 'lucide-react';
 import type { Song } from '../services/jiosaavnApi';
 import { getHighestQualityImage } from '../services/jiosaavnApi';
 import { useMusic } from '../context/MusicContext';
-import { useRegisterVisualizer } from '../hooks/useVisualizerRegistration';
+import PlayingEqualizerBadge from './PlayingEqualizerBadge';
 
 interface SongCardSpotifyProps {
-  song: Song;
+  song: any;
   index: number;
-  onPlay: (song: Song) => void;
+  onPlay: (song: any) => void;
   onPause: () => void;
-  onSongSelect: (song: Song) => void;
+  onSongSelect: (song: any) => void;
 }
 
 const SongCardSpotify: React.FC<SongCardSpotifyProps> = ({ 
@@ -20,23 +20,22 @@ const SongCardSpotify: React.FC<SongCardSpotifyProps> = ({
   onPause,
   onSongSelect
 }) => {
-  const { currentSong, currentSongId, isPlaying, isSongLiked, addToLikedSongs, removeFromLikedSongs, audioRef } = useMusic();
-  const isCurrent = currentSongId === song.id;
+  const { currentSong, isPlaying, isSongLiked, addToLikedSongs, removeFromLikedSongs } = useMusic();
+  const isCurrent = Boolean(
+    currentSong && (
+      (currentSong.id && song.id && String(currentSong.id) === String(song.id)) ||
+      (currentSong.name && song.name && currentSong.name.toLowerCase().trim() === song.name.toLowerCase().trim())
+    )
+  );
   const isLiked = isSongLiked(song.id);
   const isCurrentlyPlaying = isCurrent && isPlaying;
-  
-  // Create refs for visualizer canvas
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  
-  // Register visualizer
-  useRegisterVisualizer(canvasRef, isCurrent && isPlaying, audioRef);
 
   const handleLikeToggle = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isLiked) {
       removeFromLikedSongs(song.id);
     } else {
-      addToLikedSongs(song);
+      addToLikedSongs(song as any);
     }
   };
 
@@ -50,9 +49,10 @@ const SongCardSpotify: React.FC<SongCardSpotifyProps> = ({
   };
 
   const getImageUrl = () => {
-    if (!song.image || song.image.length === 0) {
+    if (!song.image || (Array.isArray(song.image) && song.image.length === 0)) {
       return '';
     }
+    if (typeof song.image === 'string') return song.image;
     return getHighestQualityImage(song.image);
   };
 
@@ -73,15 +73,7 @@ const SongCardSpotify: React.FC<SongCardSpotifyProps> = ({
     >
       <div className="col-span-1 flex items-center justify-center">
         <div className="relative w-10 h-10">
-          {isCurrent && isPlaying ? (
-            <canvas 
-              ref={canvasRef} 
-              className="mini-visual" 
-              width="40" 
-              height="40" 
-              aria-hidden 
-            />
-          ) : getImageUrl() ? (
+          {getImageUrl() ? (
             <img 
               src={getImageUrl()} 
               alt={song.name} 
@@ -89,7 +81,7 @@ const SongCardSpotify: React.FC<SongCardSpotifyProps> = ({
             />
           ) : (
             <div className="w-full h-full bg-gradient-to-br from-purple-500 to-blue-500 rounded flex items-center justify-center">
-              <div className="w-6 h-6 bg-white rounded-full"></div>
+              <div className="w-6 h-6 bg-white rounded-full" />
             </div>
           )}
           <button
@@ -108,19 +100,19 @@ const SongCardSpotify: React.FC<SongCardSpotifyProps> = ({
       </div>
       
       <div className="col-span-5 flex items-center">
-        <div className="flex flex-col">
-          <p className={`font-medium ${isCurrent ? 'text-emerald-500' : 'text-foreground'}`}>
+        <div className="flex flex-col flex-1 min-w-0">
+          <p className={`font-medium truncate ${isCurrent ? 'text-red-500 font-semibold' : 'text-foreground'}`}>
             {song.name}
           </p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground truncate">
             {song.primaryArtists}
           </p>
         </div>
       </div>
       
       <div className="col-span-3 flex items-center">
-        <p className="text-muted-foreground text-sm">
-          {song.album?.name || song.label || 'Unknown Album'}
+        <p className="text-muted-foreground text-sm truncate">
+          {typeof song.album === 'string' ? song.album : (song.album?.name || 'Unknown Album')}
         </p>
       </div>
       
@@ -138,7 +130,7 @@ const SongCardSpotify: React.FC<SongCardSpotifyProps> = ({
           <Heart 
             className={`w-4 h-4 ${
               isLiked 
-                ? 'text-emerald-500 fill-current' 
+                ? 'text-red-500 fill-current' 
                 : 'text-muted-foreground hover:text-foreground'
             }`} 
           />

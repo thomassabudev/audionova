@@ -3,22 +3,93 @@ const axios = require('axios');
 const router = express.Router();
 const { Pool } = require('pg');
 
-const API_BASE_URL = 'https://jiosaavn-api-privatecvc2.vercel.app';
+const JIOSAAVN_API = 'https://www.jiosaavn.com/api.php';
+const COMMON_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  Accept: 'application/json, text/plain, */*',
+  Referer: 'https://www.jiosaavn.com/',
+  Origin: 'https://www.jiosaavn.com',
+};
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
-// Database connection
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/vibemusic',
-});
+// Database connection (optional)
+let pool;
+try {
+  pool = new Pool({ connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/vibemusic' });
+} catch (e) { pool = null; }
 
 // In-memory cache
-let trendingCache = {
-  data: null,
-  timestamp: 0,
-};
-
-// In-memory history store (in production, use Redis or database)
+let trendingCache = { data: null, timestamp: 0 };
 const historyStore = {};
+
+// ── Album-based fresh song fetch ─────────────────────────────────────────────
+const COMPILATION_KW = ['best of', 'top songs', 'top hits', 'collection', 'greatest hits', 'hits of', 'playlist'];
+const isCompAlbum = (title = '') => { const t = title.toLowerCase(); return COMPILATION_KW.some(k => t.includes(k)); };
+
+async function fetchAlbumSongs(albumId) {
+  const r = await axios.get(JIOSAAVN_API, {
+    params: { __call: 'content.getAlbumDetails', albumid: albumId, _format: 'json', _marker: 0, api_version: 4, ctx: 'web6dot0' },
+    headers: COMMON_HEADERS, timeout: 8000,
+  });
+  return (r.data.songs || r.data.list || []).map(normalizeSong).filter(Boolean);
+}
+
+async function getRecentSongsForLanguage(language, maxAlbums = 8) {
+  const year = new Date().getFullYear();
+  const albumRes = await axios.get(JIOSAAVN_API, {
+    params: { __call: 'search.getAlbumResults', _format: 'json', _marker: 0, api_version: 4, ctx: 'web6dot0', q: `${language} ${year}`, n: 25, p: 1 },
+    headers: COMMON_HEADERS, timeout: 10000,
+  });
+  const albums = (albumRes.data.results || [])
+    .filter(a => !isCompAlbum(a.title))
+    .slice(0, maxAlbums);
+
+  if (!albums.length) return [];
+
+  const results = await Promise.allSettled(albums.map(a => fetchAlbumSongs(a.id)));
+  return results.filter(r => r.status === 'fulfilled').flatMap(r => r.value);
+}
+
+async function searchJioSaavn(query, limit = 50) {
+  const response = await axios.get(JIOSAAVN_API, {
+    params: { __call: 'search.getResults', _format: 'json', _marker: 0, api_version: 4, ctx: 'web6dot0', n: limit, p: 1, q: query },
+    headers: COMMON_HEADERS,
+    timeout: 12000,
+  });
+  return response.data.results || [];
+}
+
+function upgradeImageUrl(url) {
+  if (!url || typeof url !== 'string') return url;
+  return url.replace('150x150', '500x500').replace('50x50', '500x500');
+}
+
+function normalizeSong(raw) {
+  if (!raw || raw.type !== 'song') return null;
+  const info = raw.more_info || {};
+  const artists = info.artistMap || {};
+  const primaryArtists = (artists.primary_artists || []).map(a => a.name).join(', ');
+  const baseImage = raw.image || '';
+  const imageArr = [
+    { quality: '50x50',   link: baseImage },
+    { quality: '150x150', link: baseImage },
+    { quality: '500x500', link: upgradeImageUrl(baseImage) },
+  ].filter(i => i.link);
+  return {
+    id: raw.id,
+    name: raw.title,
+    album: { id: info.album_id || '', name: info.album || '', url: info.album_url || '' },
+    year: raw.year || '',
+    releaseDate: info.release_date || '',
+    duration: parseInt(info.duration, 10) || 0,
+    primaryArtists,
+    language: raw.language || '',
+    playCount: parseInt(raw.play_count, 10) || 0,
+    hasLyrics: info.has_lyrics === 'true' || info.has_lyrics === true,
+    image: imageArr,
+    downloadUrl: [],
+  };
+}
 
 /**
  * Compute trend score
@@ -104,26 +175,42 @@ function determineBadges(song, score, velocity) {
 }
 
 /**
- * Merge and deduplicate songs
+ * Merge and deduplicate songs by song ID
  */
 function mergeAndDedupe(songs) {
   const map = new Map();
-
   for (const song of songs) {
     const existing = map.get(song.id);
-
-    if (!existing) {
+    if (!existing || (Number(song.playCount) || 0) > (Number(existing.playCount) || 0)) {
       map.set(song.id, song);
-    } else {
-      const existingPlayCount = Number(existing.playCount) || 0;
-      const newPlayCount = Number(song.playCount) || 0;
+    }
+  }
+  return Array.from(map.values());
+}
 
-      if (newPlayCount > existingPlayCount) {
-        map.set(song.id, song);
+/**
+ * Deduplicate by name+artist, keeping non-compilation version when both exist
+ */
+function dedupePreferOriginal(songs) {
+  const map = new Map();
+  for (const song of songs) {
+    const key = `${song.name.toLowerCase().trim()}|${(song.primaryArtists || '').toLowerCase().trim()}`;
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, song);
+    } else {
+      const existingIsComp = isCompilationAlbum(existing);
+      const newIsComp      = isCompilationAlbum(song);
+      // Prefer original over compilation; otherwise keep higher playCount
+      if (existingIsComp && !newIsComp) {
+        map.set(key, song);
+      } else if (!existingIsComp && newIsComp) {
+        // keep existing
+      } else if ((Number(song.playCount) || 0) > (Number(existing.playCount) || 0)) {
+        map.set(key, song);
       }
     }
   }
-
   return Array.from(map.values());
 }
 
@@ -154,70 +241,99 @@ function calculateDeltas(current, previous) {
 }
 
 /**
+ * Keywords that indicate a compilation/playlist album — not a real movie/single cover
+ */
+const COMPILATION_KEYWORDS = ['best of', 'top songs', 'top hits', 'collection', 'playlist', 'greatest hits', 'hits of'];
+
+function isCompilationAlbum(song) {
+  const albumName = (
+    song.album?.name || song.album || ''
+  ).toLowerCase();
+  return COMPILATION_KEYWORDS.some(kw => albumName.includes(kw));
+}
+
+/**
+ * For compilation-album songs, try fetching individual song details
+ * from JioSaavn to get the original release artwork.
+ */
+async function enrichCompilationImages(songs) {
+  const needsFix = songs.filter(isCompilationAlbum);
+  if (!needsFix.length) return songs;
+
+  const CONCURRENCY = 8;
+  const byId = Object.fromEntries(songs.map(s => [s.id, s]));
+
+  for (let i = 0; i < needsFix.length; i += CONCURRENCY) {
+    const batch = needsFix.slice(i, i + CONCURRENCY);
+    const results = await Promise.allSettled(
+      batch.map(song =>
+        axios.get(JIOSAAVN_API, {
+          params: { __call: 'song.getDetails', _format: 'json', _marker: 0, api_version: 4, ctx: 'web6dot0', pids: song.id },
+          headers: COMMON_HEADERS,
+          timeout: 5000,
+        }).then(r => {
+          const raw = r.data;
+          const songRaw = raw[song.id] || Object.values(raw)[0];
+          const normalized = normalizeSong(songRaw);
+          return { id: song.id, image: normalized?.image, album: normalized?.album };
+        })
+      )
+    );
+
+    results.forEach(result => {
+      if (result.status !== 'fulfilled') return;
+      const { id, image, album } = result.value;
+      if (image && byId[id] && !isCompilationAlbum({ album })) {
+        byId[id] = { ...byId[id], image };
+      }
+    });
+  }
+
+  return songs.map(s => byId[s.id] || s);
+}
+
+/**
  * Fetch and process trending songs
  */
 async function fetchAndProcessTrending() {
   try {
-    console.log('[Trending] Fetching from APIs...');
-
-    const currentYear = 2025;
-    const previousYear = 2024;
-
-    // Fetch from all language endpoints with updated queries
-    const [malResponse, taResponse, hiResponse, enResponse] = await Promise.all([
-      axios.get(`${API_BASE_URL}/search/songs`, { params: { query: 'malayalam latest songs 2025', limit: 50 } }).catch(() => ({ data: { data: { results: [] } } })),
-      axios.get(`${API_BASE_URL}/search/songs`, { params: { query: 'tamil latest songs 2025', limit: 50 } }).catch(() => ({ data: { data: { results: [] } } })),
-      axios.get(`${API_BASE_URL}/search/songs`, { params: { query: 'hindi latest songs 2025', limit: 50 } }).catch(() => ({ data: { data: { results: [] } } })),
-      axios.get(`${API_BASE_URL}/search/songs`, { params: { query: 'english latest songs 2025', limit: 50 } }).catch(() => ({ data: { data: { results: [] } } })),
+    // Fetch real songs from actual movie/album releases (no compilations)
+    const [malSongs, taSongs, hiSongs, enSongs] = await Promise.all([
+      getRecentSongsForLanguage('malayalam', 8).catch(() => []),
+      getRecentSongsForLanguage('tamil',     8).catch(() => []),
+      getRecentSongsForLanguage('hindi',     8).catch(() => []),
+      searchJioSaavn('new english songs 2025', 30).then(r => r.map(normalizeSong).filter(Boolean)).catch(() => []),
     ]);
 
-    const mal = malResponse.data.data.results || [];
-    const ta = taResponse.data.data.results || [];
-    const hi = hiResponse.data.data.results || [];
-    const en = enResponse.data.data.results || [];
+    const combined = [...malSongs, ...taSongs, ...hiSongs, ...enSongs];
 
-    console.log('[Trending] Fetched:', { mal: mal.length, ta: ta.length, hi: hi.length, en: en.length });
+    const unique = dedupePreferOriginal(mergeAndDedupe(combined));
 
-    // Combine and filter by year (2024-2025 only)
-    const combined = [...mal, ...ta, ...hi, ...en].filter(song => {
-      if (song.year) {
-        const year = parseInt(song.year);
-        return year === currentYear || year === previousYear;
-      } else if (song.releaseDate) {
-        const releaseYear = new Date(song.releaseDate).getFullYear();
-        return releaseYear === currentYear || releaseYear === previousYear;
-      }
-      return false; // Exclude songs without year info
-    });
+    // Fix cover images for songs that came from compilation albums
+    const enriched = await enrichCompilationImages(unique);
 
-    const unique = mergeAndDedupe(combined);
-
-    console.log('[Trending] Unique songs:', unique.length);
-
-    // --- NEW: Filter by Cover Verification ---
-    // Get all song IDs
-    const songIds = unique.map(s => s.id);
-
-    // Query badges table
+    // --- Cover Verification (PostgreSQL optional) ---
+    const songIds = enriched.map(s => s.id);
     let verifiedIds = new Set();
-    if (songIds.length > 0) {
-      const client = await pool.connect();
+    if (songIds.length > 0 && pool) {
       try {
-        const res = await client.query(
-          'SELECT song_id FROM badges WHERE song_id = ANY($1) AND cover_verified = true',
-          [songIds]
-        );
-        res.rows.forEach(row => verifiedIds.add(row.song_id));
+        const client = await pool.connect();
+        try {
+          const res = await client.query(
+            'SELECT song_id FROM badges WHERE song_id = ANY($1) AND cover_verified = true',
+            [songIds]
+          );
+          res.rows.forEach(row => verifiedIds.add(row.song_id));
+        } finally {
+          client.release();
+        }
       } catch (err) {
-        console.error('[Trending] Error querying badges:', err);
-        // Fallback: if DB fails, keep verifiedIds empty -> result empty (conservative)
-      } finally {
-        client.release();
+        // PostgreSQL not available — skip cover verification, show all songs
       }
     }
 
     // Compute scores
-    const scored = unique.map(song => {
+    const scored = enriched.map(song => {
       const history = historyStore[song.id] || [];
       const { score, velocity } = computeTrendScore(song, history);
       const badges = determineBadges(song, score, velocity);
@@ -265,7 +381,7 @@ async function fetchAndProcessTrending() {
       timestamp: now,
     };
 
-    console.log('[Trending] Processed:', withDeltas.length, 'songs');
+    // Removed verbose logging for cleaner console
 
     return withDeltas;
   } catch (error) {

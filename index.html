@@ -1,70 +1,126 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/jpeg" href="/logo.jpg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AudioNova</title>
     
-    <!-- Suppress CORS and Firebase errors early -->
+    <!-- AGGRESSIVE Error Suppression - Runs before any other JavaScript -->
     <script>
       (function() {
-        // Store original console methods
+        'use strict';
+        
+        const suppressPatterns = [
+          'cross-origin-opener-policy',
+          'window.closed',
+          'window.close',
+          'firebase/init.json',
+          '404 (not found)',
+          'policy would block',
+          'firebase_auth.js',
+          'poll @',
+          'settimeoutpoll @',
+          'pollusercancellation @',
+          'onexecution @',
+          'execute @',
+          'executenotnull @',
+          'signinwithpopup @',
+          'googlesignin @',
+          'handlegooglesignin @',
+          'v=246362e6',
+          'understand this error'
+        ];
+
+        function shouldSuppress(args) {
+          const message = String(args[0] || '').toLowerCase();
+          const fullMessage = Array.prototype.join.call(args, ' ').toLowerCase();
+          
+          return suppressPatterns.some(function(pattern) {
+            return message.indexOf(pattern) !== -1 || fullMessage.indexOf(pattern) !== -1;
+          });
+        }
+
+        // Store original methods
         const originalError = console.error;
         const originalWarn = console.warn;
         const originalLog = console.log;
-        
-        // Override console methods to suppress CORS errors
-        console.error = function(...args) {
-          const message = String(args[0] || '');
-          const fullMessage = args.join(' ');
-          
-          if (message.includes('Cross-Origin-Opener-Policy') ||
-              message.includes('window.closed') ||
-              message.includes('window.close') ||
-              fullMessage.includes('Cross-Origin-Opener-Policy') ||
-              fullMessage.includes('window.closed') ||
-              fullMessage.includes('window.close')) {
-            return; // Suppress CORS errors
+
+        // Override console methods immediately
+        console.error = function() {
+          if (!shouldSuppress(arguments)) {
+            originalError.apply(console, arguments);
           }
-          
-          return originalError.apply(console, args);
         };
-        
-        console.warn = function(...args) {
-          const message = String(args[0] || '');
-          const fullMessage = args.join(' ');
-          
-          if (message.includes('Cross-Origin-Opener-Policy') ||
-              message.includes('window.closed') ||
-              message.includes('window.close') ||
-              message.includes('Self-XSS') ||
-              fullMessage.includes('Cross-Origin-Opener-Policy') ||
-              fullMessage.includes('window.closed') ||
-              fullMessage.includes('window.close') ||
-              fullMessage.includes('Self-XSS')) {
-            return; // Suppress CORS warnings
+
+        console.warn = function() {
+          if (!shouldSuppress(arguments)) {
+            originalWarn.apply(console, arguments);
           }
-          
-          return originalWarn.apply(console, args);
         };
-        
-        // Global error handler
+
+        console.log = function() {
+          if (!shouldSuppress(arguments)) {
+            originalLog.apply(console, arguments);
+          }
+        };
+
+        // Override prototype methods - with safety check
+        if (typeof window !== 'undefined' && window.console && window.console.constructor && window.console.constructor.prototype) {
+          try {
+            const protoError = window.console.constructor.prototype.error;
+            const protoWarn = window.console.constructor.prototype.warn;
+            const protoLog = window.console.constructor.prototype.log;
+
+            if (protoError) {
+              window.console.constructor.prototype.error = function() {
+                if (!shouldSuppress(arguments)) {
+                  protoError.apply(this, arguments);
+                }
+              };
+            }
+
+            if (protoWarn) {
+              window.console.constructor.prototype.warn = function() {
+                if (!shouldSuppress(arguments)) {
+                  protoWarn.apply(this, arguments);
+                }
+              };
+            }
+
+            if (protoLog) {
+              window.console.constructor.prototype.log = function() {
+                if (!shouldSuppress(arguments)) {
+                  protoLog.apply(this, arguments);
+                }
+              };
+            }
+          } catch (e) {
+            // Silently fail if prototype is not accessible
+          }
+        }
+
+        // Override global error handlers
+        window.onerror = function(message, source, lineno, colno, error) {
+          if (shouldSuppress([message, source])) {
+            return true; // Prevent default error handling
+          }
+          return false;
+        };
+
         window.addEventListener('error', function(event) {
-          if (event.message && event.message.includes('Cross-Origin-Opener-Policy')) {
+          if (shouldSuppress([event.message, event.filename])) {
             event.preventDefault();
             event.stopPropagation();
-            return false;
           }
         }, true);
-        
-        // Global unhandled rejection handler
+
         window.addEventListener('unhandledrejection', function(event) {
-          if (event.reason && String(event.reason).includes('Cross-Origin-Opener-Policy')) {
+          if (shouldSuppress([event.reason])) {
             event.preventDefault();
-            return false;
           }
         }, true);
+
       })();
     </script>
   </head>
