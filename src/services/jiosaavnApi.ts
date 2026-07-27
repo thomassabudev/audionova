@@ -161,7 +161,7 @@ class JioSaavnAPI {
             const response = await apiClient.get(`${this.baseURL}/search/songs`, {
               params: { query, limit }
             });
-            return response.data.data.results || [];
+            return response.data?.data?.results || [];
           },
           { maxRetries: 1, retryDelay: 2000 }
         )
@@ -177,7 +177,7 @@ class JioSaavnAPI {
       const response = await apiClient.get(`${this.baseURL}/search/albums`, {
         params: { query, limit }
       });
-      return response.data.data.results || [];
+      return response.data?.data?.results || [];
     } catch (error) {
       console.error('Error searching albums:', error);
       return [];
