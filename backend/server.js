@@ -98,33 +98,50 @@ const { JioSaavnAPI } = require('./services/jiosaavnApi');
 // Initialize JioSaavn API
 const jiosaavnApi = new JioSaavnAPI();
 
-// Add new releases routes
-const newReleasesRouter = require('./routes/new-releases');
-app.use('/api/new-releases', newReleasesRouter);
+// ── Route Registration (each wrapped in try-catch for resilience) ──────────────
+// If any single route fails to load, server continues running
 
-// Add lyrics routes
-const lyricsRouter = require('./routes/lyrics');
-app.use('/api/lyrics', lyricsRouter);
+try {
+  const newReleasesRouter = require('./routes/new-releases');
+  app.use('/api/new-releases', newReleasesRouter);
+  console.log('✅ Route loaded: /api/new-releases');
+} catch (e) { console.error('❌ Failed to load new-releases route:', e.message); }
 
-// Add trending routes
-const trendingRouter = require('./routes/trending');
-app.use('/api/trending', trendingRouter);
+try {
+  const lyricsRouter = require('./routes/lyrics');
+  app.use('/api/lyrics', lyricsRouter);
+  console.log('✅ Route loaded: /api/lyrics');
+} catch (e) { console.error('❌ Failed to load lyrics route:', e.message); }
 
-// Add cover verification routes
-const coverVerificationRouter = require('./routes/cover-verification');
-app.use('/api/cover-verification', coverVerificationRouter);
+try {
+  const trendingRouter = require('./routes/trending');
+  app.use('/api/trending', trendingRouter);
+  console.log('✅ Route loaded: /api/trending');
+} catch (e) { console.error('❌ Failed to load trending route:', e.message); }
 
-// Add admin routes
-const adminRouter = require('./routes/admin');
-app.use('/api/admin', adminRouter);
+try {
+  const coverVerificationRouter = require('./routes/cover-verification');
+  app.use('/api/cover-verification', coverVerificationRouter);
+  console.log('✅ Route loaded: /api/cover-verification');
+} catch (e) { console.error('❌ Failed to load cover-verification route:', e.message); }
 
-// Add analytics routes
-const analyticsRouter = require('./routes/analytics');
-app.use('/api', analyticsRouter);
+try {
+  const adminRouter = require('./routes/admin');
+  app.use('/api/admin', adminRouter);
+  console.log('✅ Route loaded: /api/admin');
+} catch (e) { console.error('❌ Failed to load admin route:', e.message); }
 
-// Add social graph routes (follow artists, play history)
-const socialRouter = require('./routes/social');
-app.use('/api/social', socialRouter);
+try {
+  const analyticsRouter = require('./routes/analytics');
+  app.use('/api', analyticsRouter);
+  console.log('✅ Route loaded: /api/analytics');
+} catch (e) { console.error('❌ Failed to load analytics route:', e.message); }
+
+try {
+  const socialRouter = require('./routes/social');
+  app.use('/api/social', socialRouter);
+  console.log('✅ Route loaded: /api/social');
+} catch (e) { console.error('❌ Failed to load social route:', e.message); }
 
 // Function to get Spotify access token
 async function getSpotifyAccessToken() {
