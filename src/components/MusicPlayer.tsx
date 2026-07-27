@@ -46,24 +46,30 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ onToggleSidebar, onOpenExpand
     sleepTimerRemaining,
   } = useMusic();
 
+  console.log("[MusicPlayer]", {
+    currentTime,
+    duration,
+    currentSong: currentSong?.name
+  });
+
   const { isPlaylistSidebarOpen } = usePlaylistSidebar();
   const { isLightTheme } = useThemeDetection();
 
   // Dynamic theme based on album artwork
-  const { 
-    palette, 
-    animatedGradients, 
-    updateThemeFromImage 
+  const {
+    palette,
+    animatedGradients,
+    updateThemeFromImage
   } = useDynamicTheme();
-  
+
   const themeCSS = useThemeCSS(palette);
   const currentAnimatedGradient = useAnimatedGradient(animatedGradients, isPlaying);
 
   // Theme-aware opacity and color intensity
-  const getThemeAwareOpacity = (darkOpacity: number, lightOpacity: number) => 
+  const getThemeAwareOpacity = (darkOpacity: number, lightOpacity: number) =>
     isLightTheme ? lightOpacity : darkOpacity;
-  
-  const getThemeAwareColorIntensity = (darkIntensity: number, lightIntensity: number) => 
+
+  const getThemeAwareColorIntensity = (darkIntensity: number, lightIntensity: number) =>
     isLightTheme ? lightIntensity : darkIntensity;
 
   // OPTIMIZED: Update theme less frequently to reduce scroll lag
@@ -111,13 +117,13 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ onToggleSidebar, onOpenExpand
 
   if (!currentSong) {
     return (
-      <motion.div 
+      <motion.div
         className="h-24 relative overflow-hidden flex items-center justify-center"
         style={{ willChange: 'margin-right' }}
-        animate={{ 
+        animate={{
           marginRight: isPlaylistSidebarOpen ? 320 : 0,
         }}
-        transition={{ 
+        transition={{
           duration: 0.25,
           ease: [0.25, 0.1, 0.25, 1],
         }}
@@ -132,23 +138,23 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ onToggleSidebar, onOpenExpand
   }
 
   return (
-    <motion.div 
+    <motion.div
       className="h-24 relative overflow-hidden"
-      style={{ 
+      style={{
         willChange: 'margin-right',
         ...themeCSS
       }}
-      animate={{ 
+      animate={{
         marginRight: isPlaylistSidebarOpen ? 320 : 0,
       }}
-      transition={{ 
+      transition={{
         duration: 0.25,
         ease: [0.25, 0.1, 0.25, 1],
       }}
     >
       {/* Fully Transparent Background */}
       <div className="absolute inset-0 bg-transparent" />
-      
+
       {/* Dynamic Background Gradient with Enhanced Animation - Theme-aware visibility */}
       <div className="absolute inset-0" style={{ opacity: getThemeAwareOpacity(0.5, 0.8) }}>
         {palette ? (
@@ -165,10 +171,10 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ onToggleSidebar, onOpenExpand
             }}
           />
         ) : (
-          <div className={`absolute inset-0 bg-gradient-to-r ${isLightTheme 
-            ? 'from-red-500/60 via-purple-500/60 to-blue-500/60' 
+          <div className={`absolute inset-0 bg-gradient-to-r ${isLightTheme
+            ? 'from-red-500/60 via-purple-500/60 to-blue-500/60'
             : 'from-red-500/40 via-purple-500/40 to-blue-500/40'
-          }`} />
+            }`} />
         )}
       </div>
 
@@ -177,26 +183,26 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ onToggleSidebar, onOpenExpand
         className="absolute inset-0"
         style={{ opacity: getThemeAwareOpacity(0.4, 0.7) }}
         animate={{
-          background: palette && isPlaying 
+          background: palette && isPlaying
             ? [
-                `linear-gradient(90deg, ${palette.primary}${getThemeAwareColorIntensity(50, 80)}, ${palette.secondary}${getThemeAwareColorIntensity(45, 75)})`,
-                `linear-gradient(90deg, ${palette.secondary}${getThemeAwareColorIntensity(50, 80)}, ${palette.accent}${getThemeAwareColorIntensity(45, 75)})`,
-                `linear-gradient(90deg, ${palette.accent}${getThemeAwareColorIntensity(50, 80)}, ${palette.vibrant}${getThemeAwareColorIntensity(45, 75)})`,
-                `linear-gradient(90deg, ${palette.vibrant}${getThemeAwareColorIntensity(50, 80)}, ${palette.primary}${getThemeAwareColorIntensity(45, 75)})`
-              ]
+              `linear-gradient(90deg, ${palette.primary}${getThemeAwareColorIntensity(50, 80)}, ${palette.secondary}${getThemeAwareColorIntensity(45, 75)})`,
+              `linear-gradient(90deg, ${palette.secondary}${getThemeAwareColorIntensity(50, 80)}, ${palette.accent}${getThemeAwareColorIntensity(45, 75)})`,
+              `linear-gradient(90deg, ${palette.accent}${getThemeAwareColorIntensity(50, 80)}, ${palette.vibrant}${getThemeAwareColorIntensity(45, 75)})`,
+              `linear-gradient(90deg, ${palette.vibrant}${getThemeAwareColorIntensity(50, 80)}, ${palette.primary}${getThemeAwareColorIntensity(45, 75)})`
+            ]
             : palette
-            ? `linear-gradient(90deg, ${palette.primary}${getThemeAwareColorIntensity(35, 65)}, ${palette.secondary}${getThemeAwareColorIntensity(30, 60)})`
-            : isLightTheme
-            ? [
-                'linear-gradient(90deg, rgba(239, 68, 68, 0.65), rgba(147, 51, 234, 0.65))',
-                'linear-gradient(90deg, rgba(147, 51, 234, 0.65), rgba(59, 130, 246, 0.65))',
-                'linear-gradient(90deg, rgba(59, 130, 246, 0.65), rgba(239, 68, 68, 0.65))'
-              ]
-            : [
-                'linear-gradient(90deg, rgba(239, 68, 68, 0.45), rgba(147, 51, 234, 0.45))',
-                'linear-gradient(90deg, rgba(147, 51, 234, 0.45), rgba(59, 130, 246, 0.45))',
-                'linear-gradient(90deg, rgba(59, 130, 246, 0.45), rgba(239, 68, 68, 0.45))'
-              ]
+              ? `linear-gradient(90deg, ${palette.primary}${getThemeAwareColorIntensity(35, 65)}, ${palette.secondary}${getThemeAwareColorIntensity(30, 60)})`
+              : isLightTheme
+                ? [
+                  'linear-gradient(90deg, rgba(239, 68, 68, 0.65), rgba(147, 51, 234, 0.65))',
+                  'linear-gradient(90deg, rgba(147, 51, 234, 0.65), rgba(59, 130, 246, 0.65))',
+                  'linear-gradient(90deg, rgba(59, 130, 246, 0.65), rgba(239, 68, 68, 0.65))'
+                ]
+                : [
+                  'linear-gradient(90deg, rgba(239, 68, 68, 0.45), rgba(147, 51, 234, 0.45))',
+                  'linear-gradient(90deg, rgba(147, 51, 234, 0.45), rgba(59, 130, 246, 0.45))',
+                  'linear-gradient(90deg, rgba(59, 130, 246, 0.45), rgba(239, 68, 68, 0.45))'
+                ]
         }}
         transition={{
           duration: isPlaying ? 12 : 2,
@@ -206,28 +212,28 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ onToggleSidebar, onOpenExpand
       />
 
       {/* Decorative Glass Elements - Theme-aware visibility */}
-      <div 
+      <div
         className="absolute top-2 right-4 w-8 h-8 rounded-full blur-lg"
         style={{
           opacity: getThemeAwareOpacity(0.6, 0.9),
-          background: palette 
+          background: palette
             ? `linear-gradient(135deg, ${palette.primary}${getThemeAwareColorIntensity(40, 70)}, transparent)`
             : `linear-gradient(135deg, ${isLightTheme ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.25)'}, transparent)`
         }}
       />
-      <div 
+      <div
         className="absolute bottom-2 left-4 w-6 h-6 rounded-full blur-md"
         style={{
           opacity: getThemeAwareOpacity(0.5, 0.8),
-          background: palette 
+          background: palette
             ? `linear-gradient(45deg, ${palette.accent}${getThemeAwareColorIntensity(45, 75)}, transparent)`
             : `linear-gradient(45deg, ${isLightTheme ? 'rgba(147, 51, 234, 0.5)' : 'rgba(147, 51, 234, 0.30)'}, transparent)`
         }}
       />
 
       {/* Mobile Thin Top Seek Bar (< md screens) */}
-      <div 
-        className="md:hidden absolute top-0 left-0 right-0 h-1 bg-white/20 cursor-pointer z-30" 
+      <div
+        className="md:hidden absolute top-0 left-0 right-0 h-1 bg-white/20 cursor-pointer z-30"
         onClick={(e) => { e.stopPropagation(); handleProgressClick(e); }}
         title="Tap to seek"
       >
@@ -251,7 +257,7 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ onToggleSidebar, onOpenExpand
         </motion.button>
 
         {/* Enhanced Song Info Section */}
-        <div 
+        <div
           className="flex items-center gap-2.5 flex-1 min-w-0 md:w-80 md:flex-initial cursor-pointer"
           onClick={onOpenExpandedPlayer}
         >
@@ -266,7 +272,7 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ onToggleSidebar, onOpenExpand
                 alt={currentSong.name}
                 className="w-full h-full object-cover"
               />
-              
+
               {/* Spinning vinyl effect when playing */}
               <AnimatePresence>
                 {isPlaying && (
@@ -364,28 +370,28 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ onToggleSidebar, onOpenExpand
               aria-pressed={isPlaying ? "true" : "false"}
               className="w-12 h-12 rounded-full text-white flex items-center justify-center shadow-2xl transition-all duration-300 border border-white/30"
               style={{
-                background: palette 
+                background: palette
                   ? `linear-gradient(135deg, ${palette.primary}, ${palette.accent})`
                   : 'linear-gradient(135deg, #ef4444, #dc2626)'
               }}
               whileHover={{ scale: 1.08 }}
               whileTap={{ scale: 0.92 }}
               animate={{
-                boxShadow: isPlaying 
+                boxShadow: isPlaying
                   ? palette
                     ? [
-                        `0 0 20px ${palette.primary}50`,
-                        `0 0 30px ${palette.secondary}50`,
-                        `0 0 20px ${palette.accent}50`
-                      ]
+                      `0 0 20px ${palette.primary}50`,
+                      `0 0 30px ${palette.secondary}50`,
+                      `0 0 20px ${palette.accent}50`
+                    ]
                     : [
-                        '0 0 20px rgba(239, 68, 68, 0.5)',
-                        '0 0 30px rgba(147, 51, 234, 0.5)',
-                        '0 0 20px rgba(239, 68, 68, 0.5)'
-                      ]
+                      '0 0 20px rgba(239, 68, 68, 0.5)',
+                      '0 0 30px rgba(147, 51, 234, 0.5)',
+                      '0 0 20px rgba(239, 68, 68, 0.5)'
+                    ]
                   : palette
-                  ? `0 0 15px ${palette.primary}40`
-                  : '0 0 15px rgba(239, 68, 68, 0.4)'
+                    ? `0 0 15px ${palette.primary}40`
+                    : '0 0 15px rgba(239, 68, 68, 0.4)'
               }}
               transition={{
                 boxShadow: { duration: 2, repeat: isPlaying ? Infinity : 0 }
@@ -429,31 +435,31 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ onToggleSidebar, onOpenExpand
               {formatTime(currentTime)}
             </span>
             <div className="flex-1 relative">
-              <div 
+              <div
                 className="h-2 bg-white/20 rounded-full overflow-hidden cursor-pointer shadow-inner"
                 onClick={handleProgressClick}
               >
                 <motion.div
                   className="h-full rounded-full shadow-lg"
                   style={{
-                    background: palette 
+                    background: palette
                       ? `linear-gradient(90deg, ${palette.primary}, ${palette.secondary})`
                       : 'linear-gradient(90deg, #ef4444, #a855f7)',
                     width: `${displayDuration > 0 ? (currentTime / displayDuration) * 100 : 0}%`
                   }}
                   animate={{
-                    boxShadow: isPlaying 
+                    boxShadow: isPlaying
                       ? palette
                         ? [
-                            `0 0 10px ${palette.primary}60`,
-                            `0 0 15px ${palette.secondary}60`,
-                            `0 0 10px ${palette.primary}60`
-                          ]
+                          `0 0 10px ${palette.primary}60`,
+                          `0 0 15px ${palette.secondary}60`,
+                          `0 0 10px ${palette.primary}60`
+                        ]
                         : [
-                            '0 0 10px rgba(239, 68, 68, 0.6)',
-                            '0 0 15px rgba(147, 51, 234, 0.6)',
-                            '0 0 10px rgba(239, 68, 68, 0.6)'
-                          ]
+                          '0 0 10px rgba(239, 68, 68, 0.6)',
+                          '0 0 15px rgba(147, 51, 234, 0.6)',
+                          '0 0 10px rgba(239, 68, 68, 0.6)'
+                        ]
                       : 'none'
                   }}
                   transition={{
@@ -482,20 +488,20 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ onToggleSidebar, onOpenExpand
               {volume === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
             </motion.button>
             <div className="flex-1 relative">
-              <div 
+              <div
                 className="h-2 bg-white/20 rounded-full overflow-hidden cursor-pointer shadow-inner"
                 onClick={handleVolumeChange}
               >
                 <motion.div
                   className="h-full rounded-full"
-                  style={{ 
+                  style={{
                     width: `${volume * 100}%`,
-                    background: palette 
+                    background: palette
                       ? `linear-gradient(90deg, ${palette.muted}, ${palette.vibrant})`
                       : 'linear-gradient(90deg, rgba(255,255,255,0.7), rgba(255,255,255,0.9))'
                   }}
                   animate={{
-                    boxShadow: volume > 0 
+                    boxShadow: volume > 0
                       ? palette
                         ? `0 0 8px ${palette.vibrant}40`
                         : '0 0 8px rgba(255,255,255,0.4)'
@@ -505,13 +511,12 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ onToggleSidebar, onOpenExpand
               </div>
             </div>
           </div>
-          
+
           {/* Sleep Timer Button */}
           <motion.button
             onClick={() => setIsSleepModalOpen(true)}
-            className={`relative p-2 transition-all duration-300 rounded-lg hover:bg-white/10 ${
-              sleepTimerOption !== 'off' ? 'text-red-400 font-bold bg-red-500/20' : 'text-white/70 hover:text-white'
-            }`}
+            className={`relative p-2 transition-all duration-300 rounded-lg hover:bg-white/10 ${sleepTimerOption !== 'off' ? 'text-red-400 font-bold bg-red-500/20' : 'text-white/70 hover:text-white'
+              }`}
             title={sleepTimerOption !== 'off' ? `Sleep Timer: ${sleepTimerOption}` : 'Sleep Timer'}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
@@ -556,10 +561,10 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ onToggleSidebar, onOpenExpand
           >
             <ListMusic className="w-5 h-5" />
             {queue.length > 0 && (
-              <motion.span 
+              <motion.span
                 className="absolute -top-1 -right-1 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center shadow-lg border border-white/30"
                 style={{
-                  background: palette 
+                  background: palette
                     ? `linear-gradient(135deg, ${palette.primary}, ${palette.accent})`
                     : 'linear-gradient(135deg, #ef4444, #dc2626)'
                 }}
@@ -580,11 +585,11 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ onToggleSidebar, onOpenExpand
       <ShareSongModal song={currentSong} isOpen={isShareModalOpen} onClose={() => setIsShareModalOpen(false)} />
 
       {/* Outer glow effect with dynamic colors - Theme-aware visibility */}
-      <div 
+      <div
         className="absolute inset-0 -z-10 blur-xl scale-105"
         style={{
           opacity: getThemeAwareOpacity(0.4, 0.7),
-          background: palette 
+          background: palette
             ? `linear-gradient(90deg, ${palette.primary}${getThemeAwareColorIntensity(25, 50)}, ${palette.secondary}${getThemeAwareColorIntensity(20, 45)})`
             : `linear-gradient(90deg, ${isLightTheme ? 'rgba(239, 68, 68, 0.45)' : 'rgba(239, 68, 68, 0.25)'}, ${isLightTheme ? 'rgba(147, 51, 234, 0.40)' : 'rgba(147, 51, 234, 0.20)'})`
         }}
