@@ -15,7 +15,7 @@
 
 **AudioNova** is a feature-rich music streaming web application with playlist management, real-time sync, an equalizer, lyrics viewer, and an admin dashboard — built as a comprehensive full-stack learning project.
 
-[🚀 Live Demo](https://audionova-a82d3.web.app) · [🐛 Report Bug](https://github.com/thomassabudev/audionova/issues) · [✨ Request Feature](https://github.com/thomassabudev/audionova/issues)
+[🚀 Live Demo](https://audionova-app-b26cd.web.app) · [🐛 Report Bug](https://github.com/thomassabudev/audionova/issues) · [✨ Request Feature](https://github.com/thomassabudev/audionova/issues)
 
 </div>
 
