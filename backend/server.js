@@ -25,30 +25,12 @@ connectToMongoDB().then(() => {
 const fallbackUsers = [];
 
 app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, curl, etc.)
-    if (!origin) return callback(null, true);
-    // Allow any localhost in dev or production for testing
-    if (/^http:\/\/localhost(:\d+)?$/.test(origin)) {
-      return callback(null, true);
-    }
-    // Check if origin matches allowed FRONTEND_URL or any Firebase hosting domain
-    const cleanOrigin = origin.replace(/\/$/, '');
-    const allowed = (process.env.FRONTEND_URL || 'http://localhost:5173')
-      .split(',')
-      .map(u => u.trim().replace(/\/$/, ''));
-      
-    if (
-      allowed.includes(cleanOrigin) ||
-      cleanOrigin.endsWith('.web.app') ||
-      cleanOrigin.endsWith('.firebaseapp.com')
-    ) {
-      return callback(null, true);
-    }
-    callback(new Error(`CORS: origin ${origin} not allowed`));
-  },
+  origin: true,
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
 }));
+app.options('*', cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 

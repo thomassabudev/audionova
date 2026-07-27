@@ -241,16 +241,20 @@ class JioSaavnAPI {
     }
   }
 
-  // Helper: fetch fresh songs from real album releases (no compilations)
+  // Helper: fetch fresh songs from real album releases with search fallback
   private async getFreshSongs(language: string, limit = 30): Promise<Song[]> {
     try {
       const response = await apiClient.get(`${this.baseURL}/fresh-songs/${language}`, {
         params: { limit }
       });
-      return response.data?.data || [];
+      const songs = response.data?.data || [];
+      if (Array.isArray(songs) && songs.length > 0) {
+        return songs;
+      }
     } catch {
-      return [];
+      // Fallback to searchSongs if fresh-songs endpoint fails
     }
+    return this.searchSongs(`${language} hits`, limit);
   }
 
   async getTrendingSongs(): Promise<Song[]> {
