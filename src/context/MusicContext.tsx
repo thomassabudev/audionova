@@ -264,43 +264,39 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     localStorage.setItem('audioProcessingEnabled', JSON.stringify(audioProcessingEnabled));
   }, [audioProcessingEnabled]);
 
-  // Audio element setup
+  // Audio element setup & event listeners
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) {
-      console.debug('[Player] Audio element not available yet');
-      return;
-    }
-
-    console.debug('[Player] Setting up audio element event listeners');
-
-    const handleTimeUpdate = () => {
-      if (audio.currentTime !== undefined && !isNaN(audio.currentTime)) {
-        setCurrentTime(audio.currentTime);
+    const handleTimeUpdate = (e: Event) => {
+      const activeAudio = (e.target as HTMLAudioElement) || audioRef.current;
+      if (activeAudio && activeAudio.currentTime !== undefined && !isNaN(activeAudio.currentTime)) {
+        setCurrentTime(activeAudio.currentTime);
       }
     };
-    
-    const handleLoadedMetadata = () => {
-      const newDuration = (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration) && audio.duration > 0)
-        ? audio.duration
-        : 0;
-      if (newDuration > 0) {
-        setDuration(newDuration);
+
+    const handleLoadedMetadata = (e: Event) => {
+      const activeAudio = (e.target as HTMLAudioElement) || audioRef.current;
+      if (activeAudio) {
+        const newDuration = (activeAudio.duration && !isNaN(activeAudio.duration) && isFinite(activeAudio.duration) && activeAudio.duration > 0)
+          ? activeAudio.duration
+          : 0;
+        if (newDuration > 0) {
+          setDuration(newDuration);
+        }
       }
-      setCurrentTime(0); // Reset current time when new song loads
+      setCurrentTime(0);
     };
 
-    const handleDurationChange = () => {
-      if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration) && audio.duration > 0) {
-        setDuration(audio.duration);
+    const handleDurationChange = (e: Event) => {
+      const activeAudio = (e.target as HTMLAudioElement) || audioRef.current;
+      if (activeAudio && activeAudio.duration && !isNaN(activeAudio.duration) && isFinite(activeAudio.duration) && activeAudio.duration > 0) {
+        setDuration(activeAudio.duration);
       }
     };
-    
+
     const handleEnded = () => {
       console.debug('[Player] audio ended, repeatMode:', repeatModeRef.current);
       setCurrentTime(0);
 
-      // Repeat One Track (🔂) - Repeat current song immediately without advancing queue
       if (repeatModeRef.current === 'one') {
         console.debug('[Player] Repeat One mode active - restarting track');
         if (audioRef.current) {
@@ -345,14 +341,12 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const handleError = (e: Event) => {
       const target = e.target as HTMLAudioElement;
-      const error = target.error;
+      const error = target?.error;
       
-      // Only log significant errors, not routine ones
       if (error) {
         const errorCode = error.code;
         const errorMessage = error.message || 'Unknown audio error';
         
-        // Categorize errors and reduce spam
         switch (errorCode) {
           case MediaError.MEDIA_ERR_ABORTED:
             console.debug('[Player] Audio loading was aborted (usually harmless)');
@@ -370,55 +364,66 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             setError('Audio format not supported');
             break;
           default:
-            console.error('[Player] Unknown audio error:', {
-              code: errorCode,
-              message: errorMessage,
-              networkState: target.networkState,
-              readyState: target.readyState
-            });
+            console.error('[Player] Unknown audio error:', { code: errorCode, message: errorMessage });
             setError('Audio playback error');
         }
-      } else {
-        console.debug('[Player] Audio error event without error object');
       }
-      
       setIsPlaying(false);
     };
 
-    // Add all event listeners
-    audio.addEventListener('timeupdate', handleTimeUpdate);
-    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
-    audio.addEventListener('durationchange', handleDurationChange);
-    audio.addEventListener('ended', handleEnded);
-    audio.addEventListener('play', handlePlay);
-    audio.addEventListener('pause', handlePause);
-    audio.addEventListener('canplay', handleCanPlay);
-    audio.addEventListener('loadstart', handleLoadStart);
-    audio.addEventListener('loadeddata', handleLoadedData);
-    audio.addEventListener('waiting', handleWaiting);
-    audio.addEventListener('error', handleError);
+    const attachListeners = (audioEl: HTMLAudioElement | null) => {
+      if (!audioEl) return;
+      audioEl.removeEventListener('timeupdate', handleTimeUpdate);
+      audioEl.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audioEl.removeEventListener('durationchange', handleDurationChange);
+      audioEl.removeEventListener('ended', handleEnded);
+      audioEl.removeEventListener('play', handlePlay);
+      audioEl.removeEventListener('pause', handlePause);
+      audioEl.removeEventListener('canplay', handleCanPlay);
+      audioEl.removeEventListener('loadstart', handleLoadStart);
+      audioEl.removeEventListener('loadeddata', handleLoadedData);
+      audioEl.removeEventListener('waiting', handleWaiting);
+      audioEl.removeEventListener('error', handleError);
 
-    console.debug('[Player] Audio event listeners added successfully');
+      audioEl.addEventListener('timeupdate', handleTimeUpdate);
+      audioEl.addEventListener('loadedmetadata', handleLoadedMetadata);
+      audioEl.addEventListener('durationchange', handleDurationChange);
+      audioEl.addEventListener('ended', handleEnded);
+      audioEl.addEventListener('play', handlePlay);
+      audioEl.addEventListener('pause', handlePause);
+      audioEl.addEventListener('canplay', handleCanPlay);
+      audioEl.addEventListener('loadstart', handleLoadStart);
+      audioEl.addEventListener('loadeddata', handleLoadedData);
+      audioEl.addEventListener('waiting', handleWaiting);
+      audioEl.addEventListener('error', handleError);
+    };
+
+    // Attach to current ref immediately and on frame tick
+    attachListeners(audioRef.current);
+    const frameId = requestAnimationFrame(() => attachListeners(audioRef.current));
 
     return () => {
-      console.debug('[Player] Cleaning up audio event listeners');
+      cancelAnimationFrame(frameId);
       if (playPauseTimeoutRef.current) {
         clearTimeout(playPauseTimeoutRef.current);
         playPauseTimeoutRef.current = null;
       }
-      audio.removeEventListener('timeupdate', handleTimeUpdate);
-      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      audio.removeEventListener('durationchange', handleDurationChange);
-      audio.removeEventListener('ended', handleEnded);
-      audio.removeEventListener('play', handlePlay);
-      audio.removeEventListener('pause', handlePause);
-      audio.removeEventListener('canplay', handleCanPlay);
-      audio.removeEventListener('loadstart', handleLoadStart);
-      audio.removeEventListener('loadeddata', handleLoadedData);
-      audio.removeEventListener('waiting', handleWaiting);
-      audio.removeEventListener('error', handleError);
+      const audioEl = audioRef.current;
+      if (audioEl) {
+        audioEl.removeEventListener('timeupdate', handleTimeUpdate);
+        audioEl.removeEventListener('loadedmetadata', handleLoadedMetadata);
+        audioEl.removeEventListener('durationchange', handleDurationChange);
+        audioEl.removeEventListener('ended', handleEnded);
+        audioEl.removeEventListener('play', handlePlay);
+        audioEl.removeEventListener('pause', handlePause);
+        audioEl.removeEventListener('canplay', handleCanPlay);
+        audioEl.removeEventListener('loadstart', handleLoadStart);
+        audioEl.removeEventListener('loadeddata', handleLoadedData);
+        audioEl.removeEventListener('waiting', handleWaiting);
+        audioEl.removeEventListener('error', handleError);
+      }
     };
-  }, []); // Empty dependency array is correct here
+  }, [audioRef.current]);
 
   // Sync volume with audio element
   useEffect(() => {
@@ -1157,6 +1162,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         extendSleepTimer,
       }}
     >
+      <audio ref={audioRef} crossOrigin="anonymous" preload="metadata" className="hidden" />
       {children}
     </MusicContext.Provider>
   );

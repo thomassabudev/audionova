@@ -80,6 +80,7 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ onToggleSidebar, onOpenExpand
     }
   }, [currentSong?.id, updateThemeFromImage]); // Only update when song ID changes
 
+
   const displayDuration = (duration && duration > 0 && isFinite(duration))
     ? duration
     : (currentSong?.duration ? Number(currentSong.duration) : 0);
