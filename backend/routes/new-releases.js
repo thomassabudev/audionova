@@ -192,9 +192,10 @@ async function fetchRealNewReleases() {
             { mode: CryptoJS.mode.ECB, padding: CryptoJS.pad.Pkcs7 }
           ).toString(CryptoJS.enc.Utf8).trim();
           if (base && base.startsWith('http')) {
+            const backendOrigin = (process.env.BACKEND_PUBLIC_URL || '').replace(/\/$/, '');
             downloadUrl = ['12','48','96','160','320'].map(q => ({
               quality: `${q}kbps`,
-              link: `/api/jiosaavn/stream?url=${encodeURIComponent(base.replace(/_\d+\.mp4/, `_${q}.mp4`))}`,
+              link: `${backendOrigin}/api/jiosaavn/stream?url=${encodeURIComponent(base.replace(/_\d+\.mp4/, `_${q}.mp4`))}`,
             }));
           }
         } catch {}

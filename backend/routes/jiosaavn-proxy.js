@@ -51,15 +51,18 @@ function decryptMediaUrl(encryptedUrl) {
 
 /**
  * Build proxied download links for all quality levels.
- * The CDN URL is routed through /api/jiosaavn/stream to avoid browser CORS.
+ * In production BACKEND_PUBLIC_URL is set to the Railway origin so the browser
+ * calls Railway directly instead of resolving the path against Firebase Hosting.
+ * Trailing slash is stripped to prevent double-slash (//api/...) URLs.
  */
 function createDownloadLinks(encryptedUrl) {
   const base = decryptMediaUrl(encryptedUrl);
   if (!base) return [];
+  const backendOrigin = (process.env.BACKEND_PUBLIC_URL || '').replace(/\/$/, '');
   const qualities = ['12', '48', '96', '160', '320'];
   return qualities.map((q) => {
     const cdnUrl    = base.replace(/_\d+\.mp4/, `_${q}.mp4`);
-    const proxied   = `/api/jiosaavn/stream?url=${encodeURIComponent(cdnUrl)}`;
+    const proxied   = `${backendOrigin}/api/jiosaavn/stream?url=${encodeURIComponent(cdnUrl)}`;
     return { quality: `${q}kbps`, link: proxied };
   });
 }
