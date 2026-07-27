@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
-import { Menu, User } from 'lucide-react';
+import { Menu } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { MusicProvider, useMusic } from './context/MusicContext';
 import { SettingsProvider } from './context/SettingsContext';
@@ -145,9 +145,7 @@ function App() {
                                   <span className="font-black text-sm tracking-tight text-foreground">AudioNova</span>
                                 </Link>
 
-                                <Link to="/profile" className="p-1.5 rounded-full bg-accent hover:bg-accent/80 transition-colors">
-                                  <User className="w-4 h-4 text-foreground" />
-                                </Link>
+                                <div className="w-8" />
                               </div>
                               <main className="flex-1 overflow-auto">
                                 <Routes>
