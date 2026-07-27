@@ -7,10 +7,12 @@ const apiClient = axios.create({
   timeout: 10000, // 10 second timeout
 });
 
-// Route all JioSaavn calls through the local Express backend proxy.
-// This avoids browser CORS blocks and the 402 Payment Required error
-// from the external Vercel deployment. Vite proxies /api → localhost:5009.
-const API_BASE_URL = '/api/jiosaavn';
+// Route all JioSaavn calls through the Express backend.
+// In production (Firebase Hosting), VITE_API_BASE_URL points to the Railway backend
+// so requests go directly to Railway (e.g. https://audionova-production.up.railway.app/api/jiosaavn).
+// In local development with VITE_API_BASE_URL unset, the path falls back to the relative
+// '/api/jiosaavn' which is handled by the Vite dev-server proxy (vite.config.ts).
+const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL || ''}/api/jiosaavn`;
 
 // Utility function to get the highest quality image with better deduplication
 export const getHighestQualityImage = (images: Array<{ quality?: string; link: string }> | string): string => {
