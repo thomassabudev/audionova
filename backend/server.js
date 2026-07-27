@@ -126,10 +126,6 @@ app.use('/api', analyticsRouter);
 const socialRouter = require('./routes/social');
 app.use('/api/social', socialRouter);
 
-// Add user sync routes (liked songs, playlists) - was missing!
-const userSyncRouter = require('./routes/user-sync');
-app.use('/api/sync', userSyncRouter);
-
 // Function to get Spotify access token
 async function getSpotifyAccessToken() {
   // Check if Spotify credentials are configured
