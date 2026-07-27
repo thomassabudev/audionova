@@ -45,13 +45,6 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ onToggleSidebar, onOpenExpand
     sleepTimerOption,
     sleepTimerRemaining,
   } = useMusic();
-
-  console.log("[MusicPlayer]", {
-    currentTime,
-    duration,
-    currentSong: currentSong?.name
-  });
-
   const { isPlaylistSidebarOpen } = usePlaylistSidebar();
   const { isLightTheme } = useThemeDetection();
 
