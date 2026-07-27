@@ -140,7 +140,7 @@ function App() {
                               <Menu className="w-5 h-5" />
                             </button>
 
-                            <Link to="/landing" className="flex items-center gap-2">
+                            <Link to="/" className="flex items-center gap-2">
                               <img src="/logo.jpg" alt="AudioNova" className="w-6 h-6 object-contain rounded-md" />
                               <span className="font-black text-sm tracking-tight text-foreground">AudioNova</span>
                             </Link>
