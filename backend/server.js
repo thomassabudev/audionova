@@ -819,9 +819,24 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Serve the React frontend for any unmatched routes
+// Serve the React frontend for any unmatched routes (only if dist exists)
+const fs = require('fs');
+const distIndexPath = path.join(__dirname, '../dist/index.html');
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../dist/index.html'));
+  // Don't interfere with API routes
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ error: 'API endpoint not found' });
+  }
+  // Only serve React app if dist folder exists (not available on Railway backend-only)
+  if (fs.existsSync(distIndexPath)) {
+    res.sendFile(distIndexPath);
+  } else {
+    res.status(200).json({ 
+      status: 'ok', 
+      message: 'AudioNova API Server running',
+      version: '1.0.0'
+    });
+  }
 });
 
 app.listen(PORT, () => {
