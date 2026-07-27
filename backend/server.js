@@ -24,7 +24,7 @@ connectToMongoDB().then(() => {
 // Fallback in-memory user storage for when MongoDB is not available
 const fallbackUsers = [];
 
-// CORS - Allow Firebase hosting + localhost development
+// CORS - Manual middleware for Railway proxy compatibility
 const allowedOrigins = [
   'https://audionova-app-b26cd.web.app',
   'https://audionova-app-b26cd.firebaseapp.com',
@@ -34,27 +34,26 @@ const allowedOrigins = [
   process.env.FRONTEND_URL,
 ].filter(Boolean);
 
-app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (e.g. mobile apps, curl, Postman)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    return callback(new Error('Not allowed by CORS: ' + origin), false);
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
-}));
-app.options('*', cors({
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    return callback(new Error('Not allowed by CORS'), false);
-  },
-  credentials: true,
-}));
+// Manual CORS middleware - more reliable than cors() package behind Railway proxy
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+
+  // Set CORS headers for allowed origins
+  if (!origin || allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin || '*');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+    res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours preflight cache
+  }
+
+  // Handle OPTIONS preflight immediately - return 200
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  next();
+});
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
