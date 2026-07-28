@@ -40,30 +40,34 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
-      
+
       if (currentUser) {
         const adminEmail = import.meta.env.VITE_ADMIN_EMAIL;
         const isAdminEmail = adminEmail && currentUser.email === adminEmail;
-        
+
+
         if (isAdminEmail) {
           // Admin verification (silent)
           try {
             // Force fresh token to get latest claims
             await currentUser.getIdToken(true);
-            
+
             // Get fresh token result with server-verified claims
             const tokenResult = await currentUser.getIdTokenResult(true);
-            
+
+
+
+
             // Check server-cryptographically-verified admin claim
             const hasAdminClaim = tokenResult.claims.admin === true;
             const isAuthorizedAdmin = tokenResult.claims.adminEmail === adminEmail;
             const isSingleAdmin = tokenResult.claims.singleAdmin === true;
-            
+
             // All conditions must be true
             const isMaxSecurityAdmin = hasAdminClaim && isAuthorizedAdmin && isSingleAdmin;
-            
+
             setIsAdmin(isMaxSecurityAdmin);
-            
+
             if (!isMaxSecurityAdmin && isAdmin) {
               // Only log when admin access is lost
               console.warn('Admin access revoked');
@@ -71,7 +75,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           } catch (error: any) {
             console.error('Admin verification error:', error);
             setIsAdmin(false);
-            
+
             // Handle specific error cases
             if (error?.code === 'auth/user-token-expired') {
               await logout();
@@ -84,7 +88,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       } else {
         setIsAdmin(false);
       }
-      
+
       setLoading(false);
     });
 
@@ -95,8 +99,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const handleUserProfilePicture = (user: User) => {
     if (user.photoURL) {
       // Dispatch event immediately to update profile picture components
-      window.dispatchEvent(new CustomEvent('profilePictureUpdated', { 
-        detail: { photoURL: user.photoURL } 
+      window.dispatchEvent(new CustomEvent('profilePictureUpdated', {
+        detail: { photoURL: user.photoURL }
       }));
     }
   };
@@ -107,38 +111,38 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const suppressCORSErrors = () => {
         const originalError = console.error;
         const originalWarn = console.warn;
-        
+
         // Override console methods with more specific filtering
-        console.error = function(...args) {
+        console.error = function (...args) {
           const message = args.join(' ');
           if (message.includes('Cross-Origin-Opener-Policy') ||
-              message.includes('window.closed') ||
-              message.includes('window.close') ||
-              message.includes('policy would block') ||
-              message.includes('firebase_auth.js')) {
+            message.includes('window.closed') ||
+            message.includes('window.close') ||
+            message.includes('policy would block') ||
+            message.includes('firebase_auth.js')) {
             return; // Completely suppress CORS errors
           }
           return originalError.apply(console, args);
         };
-        
-        console.warn = function(...args) {
+
+        console.warn = function (...args) {
           const message = args.join(' ');
           if (message.includes('Cross-Origin-Opener-Policy') ||
-              message.includes('window.closed') ||
-              message.includes('window.close') ||
-              message.includes('policy would block') ||
-              message.includes('firebase_auth.js')) {
+            message.includes('window.closed') ||
+            message.includes('window.close') ||
+            message.includes('policy would block') ||
+            message.includes('firebase_auth.js')) {
             return; // Completely suppress CORS warnings
           }
           return originalWarn.apply(console, args);
         };
-        
+
         return { originalError, originalWarn };
       };
 
       // Start suppressing errors
       const { originalError, originalWarn } = suppressCORSErrors();
-      
+
       try {
         // Use signInWithPopup but with better error handling
         const result = await signInWithPopup(auth, googleProvider);
@@ -160,15 +164,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.error = originalError;
         console.warn = originalWarn;
       }
-      
+
     } catch (error: any) {
       // Only log actual authentication errors, not CORS warnings
-      if (error?.code && 
-          !error.message?.includes('Cross-Origin-Opener-Policy') &&
-          !error.message?.includes('window.closed') &&
-          !error.message?.includes('window.close') &&
-          !error.message?.includes('policy would block') &&
-          !error.message?.includes('firebase_auth.js')) {
+      if (error?.code &&
+        !error.message?.includes('Cross-Origin-Opener-Policy') &&
+        !error.message?.includes('window.closed') &&
+        !error.message?.includes('window.close') &&
+        !error.message?.includes('policy would block') &&
+        !error.message?.includes('firebase_auth.js')) {
         console.error('Google sign-in error:', error);
       }
       throw error;
@@ -222,17 +226,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (auth.currentUser) {
         // 🚨 CRITICAL: Always get fresh token for admin operations
         const token = await auth.currentUser.getIdToken(forceRefresh);
-        
+
         if (forceRefresh) {
           await auth.currentUser.getIdTokenResult(true);
         }
-        
+
         return token;
       }
       return null;
     } catch (error: any) {
       console.error('Error getting auth token:', error);
-      
+
       // 🔄 Handle token refresh errors gracefully
       if (error?.code === 'auth/network-request-failed') {
         console.log('🔄 Network error getting token - user may need to retry');
@@ -240,7 +244,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.log('🔄 Token expired - forcing sign out');
         await logout();
       }
-      
+
       return null;
     }
   };

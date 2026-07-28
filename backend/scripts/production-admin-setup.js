@@ -71,7 +71,7 @@ const auditLogger = require('../utils/auditLogger');
  */
 async function setupMaximumSecurityAdmin() {
   const setupId = `setup_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  
+
   try {
     console.log('🔐 MAXIMUM-SECURITY SINGLE-ADMIN SETUP');
     console.log('=====================================');
@@ -116,14 +116,14 @@ async function setupMaximumSecurityAdmin() {
         console.error('2. Complete Google Sign-In authentication');
         console.error('3. Verify email address');
         console.error('4. Then run this setup script');
-        
+
         await auditLogger.logAdminSetup({
           action: 'SETUP_FAILED_USER_NOT_FOUND',
           setupId: setupId,
           authorizedEmail: AUTHORIZED_ADMIN_EMAIL,
           error: 'User not found in Firebase Auth'
         });
-        
+
         process.exit(1);
       }
       throw error;
@@ -134,14 +134,14 @@ async function setupMaximumSecurityAdmin() {
       console.error(`❌ SETUP FAILED: Email ${AUTHORIZED_ADMIN_EMAIL} is not verified`);
       console.error('');
       console.error('🔒 REQUIRED: Admin must verify their email address first');
-      
+
       await auditLogger.logAdminSetup({
         action: 'SETUP_FAILED_EMAIL_UNVERIFIED',
         setupId: setupId,
         uid: userRecord.uid,
         email: userRecord.email
       });
-      
+
       process.exit(1);
     }
 
@@ -150,7 +150,7 @@ async function setupMaximumSecurityAdmin() {
     if (existingClaims.admin === true) {
       console.log('ℹ️  Admin claim already exists');
       console.log('   Existing claims:', JSON.stringify(existingClaims, null, 2));
-      
+
       const confirm = await askConfirmation('Admin claim already set. Continue anyway? (y/N): ');
       if (!confirm) {
         console.log('Setup cancelled by user');
@@ -161,7 +161,7 @@ async function setupMaximumSecurityAdmin() {
     // 🔒 SET MAXIMUM-SECURITY ADMIN CLAIM
     console.log('');
     console.log('🔐 Setting maximum-security admin claim...');
-    
+
     const adminClaims = {
       admin: true,
       adminEmail: AUTHORIZED_ADMIN_EMAIL,
@@ -173,20 +173,20 @@ async function setupMaximumSecurityAdmin() {
     };
 
     await admin.auth().setCustomUserClaims(userRecord.uid, adminClaims);
-    
+
     console.log('✅ Maximum-security admin claim set successfully');
 
     // 🔍 VERIFY CLAIMS WERE SET
     const updatedUser = await admin.auth().getUser(userRecord.uid);
     const verifiedClaims = updatedUser.customClaims || {};
-    
+
     console.log('');
     console.log('🔍 CLAIM VERIFICATION:');
     console.log('   admin:', verifiedClaims.admin);
     console.log('   adminEmail:', verifiedClaims.adminEmail);
     console.log('   adminSetAt:', verifiedClaims.adminSetAt);
     console.log('   securityLevel:', verifiedClaims.securityLevel);
-    console.log('   singleAdmin:', verifiedClaims.singleAdmin);
+
 
     if (verifiedClaims.admin !== true || verifiedClaims.adminEmail !== AUTHORIZED_ADMIN_EMAIL) {
       throw new Error('Claim verification failed - claims not set correctly');
@@ -228,14 +228,14 @@ async function setupMaximumSecurityAdmin() {
 
   } catch (error) {
     console.error('❌ MAXIMUM-SECURITY SETUP FAILED:', error.message);
-    
+
     await auditLogger.logAdminSetup({
       action: 'SETUP_FAILED',
       setupId: setupId,
       error: error.message,
       stack: error.stack
     });
-    
+
     process.exit(1);
   }
 }
@@ -250,7 +250,7 @@ function askConfirmation(question) {
       input: process.stdin,
       output: process.stdout
     });
-    
+
     rl.question(question, (answer) => {
       rl.close();
       resolve(answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes');

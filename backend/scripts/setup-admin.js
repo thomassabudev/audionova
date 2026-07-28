@@ -23,7 +23,7 @@ async function setupFirstAdmin() {
   console.log('🔧 Admin Setup Wizard');
   console.log('===================');
   console.log('');
-  
+
   try {
     // Check if Firebase Admin is initialized
     if (!admin || !admin.auth) {
@@ -41,7 +41,7 @@ async function setupFirstAdmin() {
 
     // Get admin email
     const email = await question('Enter the email address for your first admin user: ');
-    
+
     if (!email || !email.includes('@')) {
       console.error('❌ Please enter a valid email address');
       process.exit(1);
@@ -54,11 +54,11 @@ async function setupFirstAdmin() {
       // Check if user exists
       const user = await admin.auth().getUserByEmail(email);
       console.log(`✅ User found: ${user.email} (UID: ${user.uid})`);
-      
+
       // Check current role
       const userRecord = await admin.auth().getUser(user.uid);
       const currentRole = userRecord.customClaims?.role;
-      
+
       if (currentRole === 'admin') {
         console.log('ℹ️  User already has admin role');
         const confirm = await question('Do you want to continue anyway? (y/N): ');
@@ -71,8 +71,15 @@ async function setupFirstAdmin() {
       // Grant admin role
       console.log('');
       console.log('🔑 Granting admin role...');
-      await admin.auth().setCustomUserClaims(user.uid, { role: 'admin' });
-      
+      await admin.auth().setCustomUserClaims(user.uid, {
+        role: 'admin',
+        admin: true,
+        adminEmail: email,
+        singleAdmin: true,
+      });
+      const updatedUser = await admin.auth().getUser(user.uid);
+      console.log("New Claims:", updatedUser.customClaims);
+
       console.log('');
       console.log('🎉 Success! Admin role granted to ' + email);
       console.log('');

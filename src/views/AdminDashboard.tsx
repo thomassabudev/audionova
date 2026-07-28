@@ -13,7 +13,7 @@ import {
   LayoutDashboard, Music, Users, TrendingUp, Star, StarOff,
   Upload, Trash2, Edit, RefreshCw, LogOut, Search, UserX, UserCheck,
   Play, Headphones, Activity, ChevronRight, Plus, ShieldAlert, ArrowLeft,
-  KeyRound, Copy, Check, UserPlus, Shield, Eye, EyeOff, Loader2
+  KeyRound, Copy, Check, UserPlus, Shield, Eye, EyeOff, Loader2, Menu, X
 } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -110,6 +110,7 @@ const AdminDashboard: React.FC = () => {
   const [showCreatePass, setShowCreatePass] = useState(false);
   const [editSong, setEditSong] = useState<Song | null>(null);
   const [userSearch, setUserSearch] = useState('');
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   // Co-Admin Form State
   const [coAdminForm, setCoAdminForm] = useState({ name: '', username: '', password: '' });
@@ -331,13 +332,14 @@ const AdminDashboard: React.FC = () => {
   }
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#0d0d1a', fontFamily: "'Inter', sans-serif", color: '#fff' }}>
+    <div className="admin-dashboard-root" style={{ display: 'flex', minHeight: '100vh', background: '#0d0d1a', fontFamily: "'Inter', sans-serif", color: '#fff' }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         * { box-sizing: border-box; }
         ::-webkit-scrollbar { width: 4px; height: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
+        .admin-dashboard-root { display: flex; min-height: 100vh; background: #0d0d1a; font-family: 'Inter', sans-serif; color: #fff; position: relative; }
         .admin-table tr:hover td { background: rgba(255,255,255,0.03); }
         .nav-item { display: flex; align-items: center; gap: 12px; padding: 11px 18px; border-radius: 12px; cursor: pointer; font-size: 14px; font-weight: 500; color: #888; transition: all 0.18s; margin-bottom: 4px; border: none; background: none; width: 100%; text-align: left; }
         .nav-item:hover { background: rgba(255,255,255,0.06); color: #fff; }
@@ -363,26 +365,71 @@ const AdminDashboard: React.FC = () => {
         .input-dark { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 9px 14px; color: #fff; font-size: 13px; outline: none; width: 100%; transition: border 0.15s; }
         .input-dark:focus { border-color: rgba(232,67,147,0.5); }
         .input-dark::placeholder { color: #555; }
+        .admin-sidebar-overlay { display: none; }
+        .mobile-toggle-btn { display: none; }
+        .table-responsive { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .admin-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+        @media (max-width: 768px) {
+          .admin-dashboard-root { flex-direction: column; }
+          .mobile-toggle-btn { display: inline-flex; align-items: center; justify-content: center; padding: 8px; border-radius: 8px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); color: #fff; cursor: pointer; min-height: 44px; min-width: 44px; }
+          .admin-sidebar-overlay { display: block; position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 99; opacity: 0; pointer-events: none; transition: opacity 0.25s ease; }
+          .admin-sidebar-overlay.open { opacity: 1; pointer-events: auto; }
+          .admin-sidebar { position: fixed !important; top: 0; bottom: 0; left: 0; z-index: 100; width: 260px !important; transform: translateX(-100%); transition: transform 0.25s ease; box-shadow: 4px 0 20px rgba(0,0,0,0.5); }
+          .admin-sidebar.open { transform: translateX(0); }
+          .admin-main { padding: 16px 14px !important; width: 100%; }
+          .admin-top-header { flex-direction: column !important; align-items: flex-start !important; gap: 14px !important; margin-bottom: 20px !important; }
+          .admin-header-title-wrapper { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+          .admin-header-actions { width: 100%; display: flex; align-items: center; gap: 8px !important; flex-wrap: wrap; }
+          .admin-header-actions .action-btn { flex: 1; justify-content: center; min-height: 44px; }
+          .stat-cards-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
+          .overview-charts-grid, .overview-bottom-grid, .analytics-charts-grid { grid-template-columns: 1fr !important; gap: 14px !important; }
+          .featured-banner, .coadmin-banner { flex-direction: column !important; align-items: stretch !important; gap: 12px !important; margin-right: 0 !important; }
+          .featured-banner button, .coadmin-banner button { width: 100%; justify-content: center; min-height: 44px; }
+          .coadmin-header-row { flex-direction: column !important; gap: 12px !important; }
+          .coadmin-header-row > button { width: 100%; justify-content: center; min-height: 44px; }
+          .admin-form-grid { grid-template-columns: 1fr !important; }
+          .action-btn { min-height: 38px; touch-action: manipulation; }
+          .nav-item { min-height: 44px; }
+        }
+        @media (max-width: 480px) {
+          .stat-cards-grid { grid-template-columns: 1fr !important; }
+        }
       `}</style>
 
+      {/* Mobile Sidebar Overlay */}
+      <div 
+        className={`admin-sidebar-overlay${mobileSidebarOpen ? ' open' : ''}`}
+        onClick={() => setMobileSidebarOpen(false)}
+      />
+
       {/* ── SIDEBAR ──────────────────────────────────────────── */}
-      <aside style={{ width: 220, background: '#111122', borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', padding: '24px 12px', flexShrink: 0 }}>
+      <aside className={`admin-sidebar${mobileSidebarOpen ? ' open' : ''}`} style={{ width: 220, background: '#111122', borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', padding: '24px 12px', flexShrink: 0 }}>
         {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 8px 28px' }}>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg, #e84393, #7c4dff)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <ShieldAlert size={18} color="#fff" />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 8px 28px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg, #e84393, #7c4dff)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <ShieldAlert size={18} color="#fff" />
+            </div>
+            <div>
+              <p style={{ fontSize: 14, fontWeight: 700, color: '#fff', lineHeight: 1 }}>AudioNova</p>
+              <p style={{ fontSize: 10, color: '#e84393', fontWeight: 600, letterSpacing: 1 }}>ADMIN</p>
+            </div>
           </div>
-          <div>
-            <p style={{ fontSize: 14, fontWeight: 700, color: '#fff', lineHeight: 1 }}>AudioNova</p>
-            <p style={{ fontSize: 10, color: '#e84393', fontWeight: 600, letterSpacing: 1 }}>ADMIN</p>
-          </div>
+          <button 
+            className="mobile-toggle-btn" 
+            onClick={() => setMobileSidebarOpen(false)}
+            style={{ background: 'none', border: 'none', color: '#aaa', padding: 4, minHeight: 'auto', minWidth: 'auto' }}
+          >
+            <X size={20} />
+          </button>
         </div>
 
         {/* Nav */}
         <nav style={{ flex: 1 }}>
           <p style={{ fontSize: 10, color: '#444', fontWeight: 600, letterSpacing: 1.5, padding: '0 10px 10px', textTransform: 'uppercase' }}>Main Menu</p>
           {NAV_ITEMS.filter(item => !item.superOnly || isSuperAdmin).map(item => (
-            <button key={item.id} className={`nav-item${page === item.id ? ' active' : ''}`} onClick={() => setPage(item.id)}>
+            <button key={item.id} className={`nav-item${page === item.id ? ' active' : ''}`} onClick={() => { setPage(item.id); setMobileSidebarOpen(false); }}>
               {item.icon} {item.label}
             </button>
           ))}
@@ -419,19 +466,30 @@ const AdminDashboard: React.FC = () => {
       </aside>
 
       {/* ── MAIN CONTENT ─────────────────────────────────────── */}
-      <main style={{ flex: 1, overflow: 'auto', padding: '28px 32px' }}>
+      <main className="admin-main" style={{ flex: 1, overflow: 'auto', padding: '28px 32px' }}>
 
         {/* ── TOP HEADER ── */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
-          <div>
-            <h1 style={{ fontSize: 24, fontWeight: 700, color: '#fff' }}>
-              {NAV_ITEMS.find(n => n.id === page)?.label || 'Dashboard'}
-            </h1>
-            <p style={{ fontSize: 12, color: '#555', marginTop: 2 }}>
-              Welcome to AudioNova Admin · {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : 'Loading...'}
-            </p>
+        <div className="admin-top-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
+          <div className="admin-header-title-wrapper">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button 
+                className="mobile-toggle-btn"
+                onClick={() => setMobileSidebarOpen(true)}
+                title="Open menu"
+              >
+                <Menu size={20} />
+              </button>
+              <div>
+                <h1 style={{ fontSize: 24, fontWeight: 700, color: '#fff' }}>
+                  {NAV_ITEMS.find(n => n.id === page)?.label || 'Dashboard'}
+                </h1>
+                <p style={{ fontSize: 12, color: '#555', marginTop: 2 }}>
+                  Welcome to AudioNova Admin · {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : 'Loading...'}
+                </p>
+              </div>
+            </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div className="admin-header-actions" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button
               className="action-btn"
               onClick={() => navigate('/')}
@@ -452,7 +510,7 @@ const AdminDashboard: React.FC = () => {
         {page === 'overview' && (
           <div>
             {/* Stat Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
+            <div className="stat-cards-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
               {statCards.map((card, i) => (
                 <div key={i} className={`stat-card bg-gradient-to-br ${card.gradient}`} style={{ background: `linear-gradient(135deg, ${['#e84393','#7c4dff','#ff8f00','#00bcd4'][i]}, ${['#c0185e','#5023b8','#e65100','#006064'][i]})` }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -471,7 +529,7 @@ const AdminDashboard: React.FC = () => {
             </div>
 
             {/* Plays Chart + Top Songs */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 16, marginBottom: 16 }}>
+            <div className="overview-charts-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 16, marginBottom: 16 }}>
               {/* Plays Over Time */}
               <div className="glass-card" style={{ padding: 24 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
@@ -524,7 +582,7 @@ const AdminDashboard: React.FC = () => {
             </div>
 
             {/* Recent Users + Most Active */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div className="overview-bottom-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               {/* Recent Users */}
               <div className="glass-card" style={{ padding: 24 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -534,41 +592,43 @@ const AdminDashboard: React.FC = () => {
                 {users.length === 0 ? (
                   <p style={{ color: '#444', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>No users registered yet</p>
                 ) : (
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }} className="admin-table">
-                    <thead>
-                      <tr>
-                        {['User', 'Email', 'Liked', 'Status'].map(h => (
-                          <th key={h} style={{ textAlign: 'left', fontSize: 10, color: '#555', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, padding: '0 8px 10px 0' }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {users.slice(0, 6).map(u => {
-                        const avatarUrl = u.profilePicture ? (u.profilePicture.startsWith('/uploads') ? `${API_ENDPOINTS.BASE_URL}${u.profilePicture}` : u.profilePicture) : null;
-                        return (
-                          <tr key={u.id}>
-                            <td style={{ padding: '8px 8px 8px 0' }}>
-                              <div style={{ width: 30, height: 30, borderRadius: '50%', overflow: 'hidden', background: `linear-gradient(135deg, #e84393, #7c4dff)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
-                                {avatarUrl ? (
-                                  <img src={avatarUrl} alt={u.name || u.email} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                ) : (
-                                  (u.name || u.email).charAt(0).toUpperCase()
-                                )}
-                              </div>
-                            </td>
-                            <td style={{ padding: '8px 8px 8px 0', fontSize: 12, color: '#ccc', maxWidth: 140 }}>
-                              <div style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{u.name || u.email.split('@')[0]}</div>
-                              <div style={{ fontSize: 10, color: '#555', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{u.email}</div>
-                            </td>
-                            <td style={{ padding: '8px 8px 8px 0', fontSize: 11, color: '#888' }}>{u.likedSongsCount}</td>
-                            <td style={{ padding: '8px 0' }}>
-                              <span className={`badge ${u.isBlocked ? 'badge-red' : 'badge-green'}`}>{u.isBlocked ? 'Blocked' : 'Active'}</span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                  <div className="table-responsive">
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }} className="admin-table">
+                      <thead>
+                        <tr>
+                          {['User', 'Email', 'Liked', 'Status'].map(h => (
+                            <th key={h} style={{ textAlign: 'left', fontSize: 10, color: '#555', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, padding: '0 8px 10px 0' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {users.slice(0, 6).map(u => {
+                          const avatarUrl = u.profilePicture ? (u.profilePicture.startsWith('/uploads') ? `${API_ENDPOINTS.BASE_URL}${u.profilePicture}` : u.profilePicture) : null;
+                          return (
+                            <tr key={u.id}>
+                              <td style={{ padding: '8px 8px 8px 0' }}>
+                                <div style={{ width: 30, height: 30, borderRadius: '50%', overflow: 'hidden', background: `linear-gradient(135deg, #e84393, #7c4dff)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
+                                  {avatarUrl ? (
+                                    <img src={avatarUrl} alt={u.name || u.email} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                  ) : (
+                                    (u.name || u.email).charAt(0).toUpperCase()
+                                  )}
+                                </div>
+                              </td>
+                              <td style={{ padding: '8px 8px 8px 0', fontSize: 12, color: '#ccc', maxWidth: 140 }}>
+                                <div style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{u.name || u.email.split('@')[0]}</div>
+                                <div style={{ fontSize: 10, color: '#555', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{u.email}</div>
+                              </td>
+                              <td style={{ padding: '8px 8px 8px 0', fontSize: 11, color: '#888' }}>{u.likedSongsCount}</td>
+                              <td style={{ padding: '8px 0' }}>
+                                <span className={`badge ${u.isBlocked ? 'badge-red' : 'badge-green'}`}>{u.isBlocked ? 'Blocked' : 'Active'}</span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </div>
 
@@ -639,7 +699,7 @@ const AdminDashboard: React.FC = () => {
             </div>
 
             {/* Side by side: Top Songs Bar + User Play Bar */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div className="analytics-charts-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               <div className="glass-card" style={{ padding: 24 }}>
                 <p style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Top Songs</p>
                 <p style={{ fontSize: 11, color: '#555', marginBottom: 20 }}>By total play count</p>
@@ -687,28 +747,30 @@ const AdminDashboard: React.FC = () => {
               {userAnalytics.length === 0 ? (
                 <p style={{ color: '#444', fontSize: 13, textAlign: 'center', padding: '24px 0' }}>No user data yet</p>
               ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse' }} className="admin-table">
-                  <thead>
-                    <tr>
-                      {['User Email', 'Total Plays', 'Unique Songs', 'First Play', 'Last Play'].map(h => (
-                        <th key={h} style={{ textAlign: 'left', fontSize: 10, color: '#555', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, padding: '0 12px 12px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {userAnalytics.map(u => (
-                      <tr key={u.userId}>
-                        <td style={{ padding: '11px 12px 11px 0', fontSize: 13, color: '#ccc', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>{u.userEmail}</td>
-                        <td style={{ padding: '11px 12px 11px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                          <span className="badge badge-blue">{u.totalPlays}</span>
-                        </td>
-                        <td style={{ padding: '11px 12px 11px 0', fontSize: 13, color: '#888', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>{u.uniqueSongs}</td>
-                        <td style={{ padding: '11px 12px 11px 0', fontSize: 11, color: '#666', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>{new Date(u.firstPlay).toLocaleDateString()}</td>
-                        <td style={{ padding: '11px 0 11px 0', fontSize: 11, color: '#666', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>{new Date(u.lastPlay).toLocaleDateString()}</td>
+                <div className="table-responsive">
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }} className="admin-table">
+                    <thead>
+                      <tr>
+                        {['User Email', 'Total Plays', 'Unique Songs', 'First Play', 'Last Play'].map(h => (
+                          <th key={h} style={{ textAlign: 'left', fontSize: 10, color: '#555', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, padding: '0 12px 12px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{h}</th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {userAnalytics.map(u => (
+                        <tr key={u.userId}>
+                          <td style={{ padding: '11px 12px 11px 0', fontSize: 13, color: '#ccc', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>{u.userEmail}</td>
+                          <td style={{ padding: '11px 12px 11px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                            <span className="badge badge-blue">{u.totalPlays}</span>
+                          </td>
+                          <td style={{ padding: '11px 12px 11px 0', fontSize: 13, color: '#888', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>{u.uniqueSongs}</td>
+                          <td style={{ padding: '11px 12px 11px 0', fontSize: 11, color: '#666', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>{new Date(u.firstPlay).toLocaleDateString()}</td>
+                          <td style={{ padding: '11px 0 11px 0', fontSize: 11, color: '#666', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>{new Date(u.lastPlay).toLocaleDateString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           </div>
@@ -733,61 +795,63 @@ const AdminDashboard: React.FC = () => {
                   <p style={{ fontSize: 12, marginTop: 6 }}>Upload your first custom song above</p>
                 </div>
               ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse' }} className="admin-table">
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-                      {['#', 'Title', 'Artist', 'Album', 'Genre', 'Duration', 'Uploaded', 'Actions'].map(h => (
-                        <th key={h} style={{ textAlign: 'left', fontSize: 10, color: '#555', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, padding: '14px 12px' }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {songs.map((song, i) => (
-                      <tr key={song.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                        <td style={{ padding: '13px 12px', fontSize: 12, color: '#555' }}>{i + 1}</td>
-                        <td style={{ padding: '13px 12px', fontSize: 13, fontWeight: 600, color: '#fff', maxWidth: 180 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <div style={{ width: 34, height: 34, borderRadius: 8, background: 'linear-gradient(135deg, #e84393, #7c4dff)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                              <Music size={14} />
-                            </div>
-                            <span style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{song.title}</span>
-                          </div>
-                        </td>
-                        <td style={{ padding: '13px 12px', fontSize: 12, color: '#aaa' }}>{song.artist}</td>
-                        <td style={{ padding: '13px 12px', fontSize: 12, color: '#777' }}>{song.album}</td>
-                        <td style={{ padding: '13px 12px' }}><span className="badge badge-blue">{song.genre}</span></td>
-                        <td style={{ padding: '13px 12px', fontSize: 11, color: '#666' }}>{Math.floor(song.duration / 60)}:{String(song.duration % 60).padStart(2, '0')}</td>
-                        <td style={{ padding: '13px 12px', fontSize: 11, color: '#555' }}>{new Date(song.uploadedAt).toLocaleDateString()}</td>
-                        <td style={{ padding: '13px 12px' }}>
-                          <div style={{ display: 'flex', gap: 6 }}>
-                            <button className="action-btn" style={{ fontSize: 11, padding: '5px 10px' }} onClick={() => setEditSong(song)}><Edit size={11} /></button>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <button className="action-btn danger" style={{ fontSize: 11, padding: '5px 10px' }}><Trash2 size={11} /></button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent style={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16 }}>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle style={{ color: '#fff' }}>Delete Song</AlertDialogTitle>
-                                  <AlertDialogDescription style={{ color: '#888' }}>Delete "{song.title}"? This action cannot be undone.</AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#fff', borderRadius: 10 }}>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => handleDelete(song.id)} style={{ background: '#ef4444', border: 'none', borderRadius: 10 }}>Delete</AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </div>
-                        </td>
+                <div className="table-responsive">
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }} className="admin-table">
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+                        {['#', 'Title', 'Artist', 'Album', 'Genre', 'Duration', 'Uploaded', 'Actions'].map(h => (
+                          <th key={h} style={{ textAlign: 'left', fontSize: 10, color: '#555', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, padding: '14px 12px' }}>{h}</th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {songs.map((song, i) => (
+                        <tr key={song.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                          <td style={{ padding: '13px 12px', fontSize: 12, color: '#555' }}>{i + 1}</td>
+                          <td style={{ padding: '13px 12px', fontSize: 13, fontWeight: 600, color: '#fff', maxWidth: 180 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <div style={{ width: 34, height: 34, borderRadius: 8, background: 'linear-gradient(135deg, #e84393, #7c4dff)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                <Music size={14} />
+                              </div>
+                              <span style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{song.title}</span>
+                            </div>
+                          </td>
+                          <td style={{ padding: '13px 12px', fontSize: 12, color: '#aaa' }}>{song.artist}</td>
+                          <td style={{ padding: '13px 12px', fontSize: 12, color: '#777' }}>{song.album}</td>
+                          <td style={{ padding: '13px 12px' }}><span className="badge badge-blue">{song.genre}</span></td>
+                          <td style={{ padding: '13px 12px', fontSize: 11, color: '#666' }}>{Math.floor(song.duration / 60)}:{String(song.duration % 60).padStart(2, '0')}</td>
+                          <td style={{ padding: '13px 12px', fontSize: 11, color: '#555' }}>{new Date(song.uploadedAt).toLocaleDateString()}</td>
+                          <td style={{ padding: '13px 12px' }}>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <button className="action-btn" style={{ fontSize: 11, padding: '5px 10px' }} onClick={() => setEditSong(song)}><Edit size={11} /></button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <button className="action-btn danger" style={{ fontSize: 11, padding: '5px 10px' }}><Trash2 size={11} /></button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent style={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, maxWidth: 'calc(100vw - 32px)', width: '100%' }}>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle style={{ color: '#fff' }}>Delete Song</AlertDialogTitle>
+                                    <AlertDialogDescription style={{ color: '#888' }}>Delete "{song.title}"? This action cannot be undone.</AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#fff', borderRadius: 10 }}>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleDelete(song.id)} style={{ background: '#ef4444', border: 'none', borderRadius: 10 }}>Delete</AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
 
             {/* Upload Dialog */}
             <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
-              <DialogContent style={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 18, color: '#fff', maxWidth: 480 }}>
+              <DialogContent style={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 18, color: '#fff', maxWidth: 'calc(100vw - 32px)', width: '100%' }}>
                 <DialogHeader>
                   <DialogTitle style={{ color: '#fff' }}>Upload New Song</DialogTitle>
                   <DialogDescription style={{ color: '#888' }}>MP3, AAC or OGG · Max 50MB · Saved permanently to MongoDB</DialogDescription>
@@ -798,7 +862,7 @@ const AdminDashboard: React.FC = () => {
 
             {/* Edit Dialog */}
             <Dialog open={!!editSong} onOpenChange={open => { if (!open) setEditSong(null); }}>
-              <DialogContent style={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 18, color: '#fff', maxWidth: 480 }}>
+              <DialogContent style={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 18, color: '#fff', maxWidth: 'calc(100vw - 32px)', width: '100%' }}>
                 <DialogHeader>
                   <DialogTitle style={{ color: '#fff' }}>Edit Song</DialogTitle>
                   <DialogDescription style={{ color: '#888' }}>Update song metadata in MongoDB</DialogDescription>
@@ -829,70 +893,72 @@ const AdminDashboard: React.FC = () => {
                   <p style={{ fontSize: 14 }}>No users found</p>
                 </div>
               ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse' }} className="admin-table">
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-                      {['User', 'Email', 'Liked Songs', 'Joined', 'Status', 'Actions'].map(h => (
-                        <th key={h} style={{ textAlign: 'left', fontSize: 10, color: '#555', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, padding: '14px 12px' }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredUsers.map(u => {
-                      const avatarUrl = u.profilePicture ? (u.profilePicture.startsWith('/uploads') ? `${API_ENDPOINTS.BASE_URL}${u.profilePicture}` : u.profilePicture) : null;
-                      return (
-                        <tr key={u.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: u.isBlocked ? 'rgba(248,113,113,0.03)' : 'transparent' }}>
-                          <td style={{ padding: '13px 12px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                              <div style={{ width: 36, height: 36, borderRadius: '50%', overflow: 'hidden', background: u.isBlocked ? 'rgba(248,113,113,0.2)' : 'linear-gradient(135deg, #e84393, #7c4dff)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, flexShrink: 0, color: u.isBlocked ? '#f87171' : '#fff' }}>
-                                {avatarUrl ? (
-                                  <img src={avatarUrl} alt={u.name || u.email} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                ) : (
-                                  (u.name || u.email).charAt(0).toUpperCase()
-                                )}
-                              </div>
-                              <div>
-                                <p style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>{u.name || 'User'}</p>
-                                {u.isBlocked && <span style={{ fontSize: 10, color: '#f87171' }}>Blocked{u.blockedReason ? `: ${u.blockedReason}` : ''}</span>}
-                              </div>
-                            </div>
-                          </td>
-                        <td style={{ padding: '13px 12px', fontSize: 12, color: '#aaa' }}>{u.email}</td>
-                        <td style={{ padding: '13px 12px', fontSize: 13, color: '#ccc', fontWeight: 600 }}>{u.likedSongsCount}</td>
-                        <td style={{ padding: '13px 12px', fontSize: 11, color: '#666' }}>{new Date(u.createdAt).toLocaleDateString()}</td>
-                        <td style={{ padding: '13px 12px' }}>
-                          <span className={`badge ${u.isBlocked ? 'badge-red' : 'badge-green'}`}>{u.isBlocked ? 'Blocked' : 'Active'}</span>
-                        </td>
-                        <td style={{ padding: '13px 12px' }}>
-                          {u.isBlocked ? (
-                            <button className="action-btn success" style={{ fontSize: 11, padding: '5px 12px' }} onClick={() => handleUnblock(u.firebaseUid || u.id)}>
-                              <UserCheck size={11} /> Unblock
-                            </button>
-                          ) : (
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <button className="action-btn danger" style={{ fontSize: 11, padding: '5px 12px' }}>
-                                  <UserX size={11} /> Block
-                                </button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent style={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16 }}>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle style={{ color: '#fff' }}>Block User?</AlertDialogTitle>
-                                  <AlertDialogDescription style={{ color: '#888' }}>Block {u.email}? They won't be able to access the platform.</AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#fff', borderRadius: 10 }}>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => handleBlock(u.firebaseUid || u.id)} style={{ background: '#ef4444', border: 'none', borderRadius: 10 }}>Block</AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          )}
-                        </td>
+                <div className="table-responsive">
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }} className="admin-table">
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+                        {['User', 'Email', 'Liked Songs', 'Joined', 'Status', 'Actions'].map(h => (
+                          <th key={h} style={{ textAlign: 'left', fontSize: 10, color: '#555', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, padding: '14px 12px' }}>{h}</th>
+                        ))}
                       </tr>
-                    );
-                  })}
-                </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {filteredUsers.map(u => {
+                        const avatarUrl = u.profilePicture ? (u.profilePicture.startsWith('/uploads') ? `${API_ENDPOINTS.BASE_URL}${u.profilePicture}` : u.profilePicture) : null;
+                        return (
+                          <tr key={u.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: u.isBlocked ? 'rgba(248,113,113,0.03)' : 'transparent' }}>
+                            <td style={{ padding: '13px 12px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <div style={{ width: 36, height: 36, borderRadius: '50%', overflow: 'hidden', background: u.isBlocked ? 'rgba(248,113,113,0.2)' : 'linear-gradient(135deg, #e84393, #7c4dff)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, flexShrink: 0, color: u.isBlocked ? '#f87171' : '#fff' }}>
+                                  {avatarUrl ? (
+                                    <img src={avatarUrl} alt={u.name || u.email} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                  ) : (
+                                    (u.name || u.email).charAt(0).toUpperCase()
+                                  )}
+                                </div>
+                                <div>
+                                  <p style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>{u.name || 'User'}</p>
+                                  {u.isBlocked && <span style={{ fontSize: 10, color: '#f87171' }}>Blocked{u.blockedReason ? `: ${u.blockedReason}` : ''}</span>}
+                                </div>
+                              </div>
+                            </td>
+                          <td style={{ padding: '13px 12px', fontSize: 12, color: '#aaa' }}>{u.email}</td>
+                          <td style={{ padding: '13px 12px', fontSize: 13, color: '#ccc', fontWeight: 600 }}>{u.likedSongsCount}</td>
+                          <td style={{ padding: '13px 12px', fontSize: 11, color: '#666' }}>{new Date(u.createdAt).toLocaleDateString()}</td>
+                          <td style={{ padding: '13px 12px' }}>
+                            <span className={`badge ${u.isBlocked ? 'badge-red' : 'badge-green'}`}>{u.isBlocked ? 'Blocked' : 'Active'}</span>
+                          </td>
+                          <td style={{ padding: '13px 12px' }}>
+                            {u.isBlocked ? (
+                              <button className="action-btn success" style={{ fontSize: 11, padding: '5px 12px' }} onClick={() => handleUnblock(u.firebaseUid || u.id)}>
+                                <UserCheck size={11} /> Unblock
+                              </button>
+                            ) : (
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <button className="action-btn danger" style={{ fontSize: 11, padding: '5px 12px' }}>
+                                    <UserX size={11} /> Block
+                                  </button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent style={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, maxWidth: 'calc(100vw - 32px)', width: '100%' }}>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle style={{ color: '#fff' }}>Block User?</AlertDialogTitle>
+                                    <AlertDialogDescription style={{ color: '#888' }}>Block {u.email}? They won't be able to access the platform.</AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#fff', borderRadius: 10 }}>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleBlock(u.firebaseUid || u.id)} style={{ background: '#ef4444', border: 'none', borderRadius: 10 }}>Block</AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  </table>
+                </div>
               )}
             </div>
           </div>
@@ -904,7 +970,7 @@ const AdminDashboard: React.FC = () => {
         {page === 'featured' && (
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div className="glass-card" style={{ padding: '14px 20px', flex: 1, marginRight: 12, display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div className="featured-banner glass-card" style={{ padding: '14px 20px', flex: 1, marginRight: 12, display: 'flex', alignItems: 'center', gap: 14 }}>
                 <div style={{ fontSize: 28 }}>⭐</div>
                 <div style={{ flex: 1 }}>
                   <p style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>
@@ -926,41 +992,43 @@ const AdminDashboard: React.FC = () => {
                   <p style={{ fontSize: 12, marginTop: 6 }}>Play any song and click "Feature Now" above</p>
                 </div>
               ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse' }} className="admin-table">
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-                      {['#', 'Song', 'Artist', 'Featured On', 'Actions'].map(h => (
-                        <th key={h} style={{ textAlign: 'left', fontSize: 10, color: '#555', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, padding: '14px 12px' }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {featuredSongs.map((song, i) => {
-                      const imgSrc = typeof song.image === 'string' ? song.image
-                        : Array.isArray(song.image) ? (typeof song.image[song.image.length - 1] === 'string' ? song.image[song.image.length - 1] : (song.image[song.image.length - 1] as any)?.link) : null;
-                      return (
-                        <tr key={song._id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                          <td style={{ padding: '13px 12px', fontSize: 12, color: '#e84393', fontWeight: 700 }}>#{i + 1}</td>
-                          <td style={{ padding: '13px 12px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                              <div style={{ width: 40, height: 40, borderRadius: 10, overflow: 'hidden', flexShrink: 0, background: 'rgba(255,255,255,0.06)' }}>
-                                {imgSrc ? <img src={imgSrc} alt={song.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🎵</div>}
+                <div className="table-responsive">
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }} className="admin-table">
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+                        {['#', 'Song', 'Artist', 'Featured On', 'Actions'].map(h => (
+                          <th key={h} style={{ textAlign: 'left', fontSize: 10, color: '#555', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, padding: '14px 12px' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {featuredSongs.map((song, i) => {
+                        const imgSrc = typeof song.image === 'string' ? song.image
+                          : Array.isArray(song.image) ? (typeof song.image[song.image.length - 1] === 'string' ? song.image[song.image.length - 1] : (song.image[song.image.length - 1] as any)?.link) : null;
+                        return (
+                          <tr key={song._id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                            <td style={{ padding: '13px 12px', fontSize: 12, color: '#e84393', fontWeight: 700 }}>#{i + 1}</td>
+                            <td style={{ padding: '13px 12px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <div style={{ width: 40, height: 40, borderRadius: 10, overflow: 'hidden', flexShrink: 0, background: 'rgba(255,255,255,0.06)' }}>
+                                  {imgSrc ? <img src={imgSrc} alt={song.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🎵</div>}
+                                </div>
+                                <span style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>{song.name}</span>
                               </div>
-                              <span style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>{song.name}</span>
-                            </div>
-                          </td>
-                          <td style={{ padding: '13px 12px', fontSize: 12, color: '#aaa' }}>{song.primaryArtists}</td>
-                          <td style={{ padding: '13px 12px', fontSize: 11, color: '#666' }}>{new Date(song.featuredAt).toLocaleDateString()}</td>
-                          <td style={{ padding: '13px 12px' }}>
-                            <button className="action-btn danger" style={{ fontSize: 11, padding: '5px 12px' }} onClick={() => handleUnfeature(song._id)}>
-                              <StarOff size={11} /> Remove
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                            </td>
+                            <td style={{ padding: '13px 12px', fontSize: 12, color: '#aaa' }}>{song.primaryArtists}</td>
+                            <td style={{ padding: '13px 12px', fontSize: 11, color: '#666' }}>{new Date(song.featuredAt).toLocaleDateString()}</td>
+                            <td style={{ padding: '13px 12px' }}>
+                              <button className="action-btn danger" style={{ fontSize: 11, padding: '5px 12px' }} onClick={() => handleUnfeature(song._id)}>
+                                <StarOff size={11} /> Remove
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           </div>
@@ -971,8 +1039,8 @@ const AdminDashboard: React.FC = () => {
         {/* ════════════════════════════════════════════════════ */}
         {page === 'coadmins' && isSuperAdmin && (
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <div className="glass-card" style={{ padding: '16px 22px', flex: 1, marginRight: 16, display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div className="coadmin-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <div className="coadmin-banner glass-card" style={{ padding: '16px 22px', flex: 1, marginRight: 16, display: 'flex', alignItems: 'center', gap: 14 }}>
                 <div style={{ width: 42, height: 42, borderRadius: 12, background: 'linear-gradient(135deg, #00bcd4, #7c4dff)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <Shield size={22} color="#fff" />
                 </div>
@@ -1007,60 +1075,62 @@ const AdminDashboard: React.FC = () => {
                   <p style={{ fontSize: 12, marginTop: 6 }}>Click "Create Co-Admin" above to add your first manager account</p>
                 </div>
               ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse' }} className="admin-table">
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-                      {['Name', 'Username', 'Role', 'Created By', 'Created On', 'Actions'].map(h => (
-                        <th key={h} style={{ textAlign: 'left', fontSize: 10, color: '#555', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, padding: '14px 12px' }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {coAdmins.map(ca => (
-                      <tr key={ca._id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                        <td style={{ padding: '13px 12px', fontSize: 13, fontWeight: 600, color: '#fff' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'linear-gradient(135deg, #00bcd4, #7c4dff)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
-                              {ca.name.charAt(0).toUpperCase()}
-                            </div>
-                            <span>{ca.name}</span>
-                          </div>
-                        </td>
-                        <td style={{ padding: '13px 12px', fontSize: 12, color: '#00bcd4', fontWeight: 600 }}>@{ca.username}</td>
-                        <td style={{ padding: '13px 12px' }}><span className="badge badge-blue">Co-Admin</span></td>
-                        <td style={{ padding: '13px 12px', fontSize: 11, color: '#aaa' }}>{ca.createdBy}</td>
-                        <td style={{ padding: '13px 12px', fontSize: 11, color: '#666' }}>{new Date(ca.createdAt).toLocaleDateString()}</td>
-                        <td style={{ padding: '13px 12px' }}>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <button className="action-btn danger" style={{ fontSize: 11, padding: '5px 12px' }}>
-                                <Trash2 size={11} /> Revoke Access
-                              </button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent style={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16 }}>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle style={{ color: '#fff' }}>Revoke Co-Admin Access?</AlertDialogTitle>
-                                <AlertDialogDescription style={{ color: '#888' }}>
-                                  Revoke access for @{ca.username}? They will no longer be able to log into the Admin Dashboard.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#fff', borderRadius: 10 }}>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDeleteCoAdminClick(ca._id)} style={{ background: '#ef4444', border: 'none', borderRadius: 10 }}>Revoke</AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </td>
+                <div className="table-responsive">
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }} className="admin-table">
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+                        {['Name', 'Username', 'Role', 'Created By', 'Created On', 'Actions'].map(h => (
+                          <th key={h} style={{ textAlign: 'left', fontSize: 10, color: '#555', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, padding: '14px 12px' }}>{h}</th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {coAdmins.map(ca => (
+                        <tr key={ca._id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                          <td style={{ padding: '13px 12px', fontSize: 13, fontWeight: 600, color: '#fff' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'linear-gradient(135deg, #00bcd4, #7c4dff)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
+                                {ca.name.charAt(0).toUpperCase()}
+                              </div>
+                              <span>{ca.name}</span>
+                            </div>
+                          </td>
+                          <td style={{ padding: '13px 12px', fontSize: 12, color: '#00bcd4', fontWeight: 600 }}>@{ca.username}</td>
+                          <td style={{ padding: '13px 12px' }}><span className="badge badge-blue">Co-Admin</span></td>
+                          <td style={{ padding: '13px 12px', fontSize: 11, color: '#aaa' }}>{ca.createdBy}</td>
+                          <td style={{ padding: '13px 12px', fontSize: 11, color: '#666' }}>{new Date(ca.createdAt).toLocaleDateString()}</td>
+                          <td style={{ padding: '13px 12px' }}>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <button className="action-btn danger" style={{ fontSize: 11, padding: '5px 12px' }}>
+                                  <Trash2 size={11} /> Revoke Access
+                                </button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent style={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, maxWidth: 'calc(100vw - 32px)', width: '100%' }}>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle style={{ color: '#fff' }}>Revoke Co-Admin Access?</AlertDialogTitle>
+                                  <AlertDialogDescription style={{ color: '#888' }}>
+                                    Revoke access for @{ca.username}? They will no longer be able to log into the Admin Dashboard.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#fff', borderRadius: 10 }}>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => handleDeleteCoAdminClick(ca._id)} style={{ background: '#ef4444', border: 'none', borderRadius: 10 }}>Revoke</AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
 
             {/* Create Co-Admin Dialog */}
             <Dialog open={createCoAdminOpen} onOpenChange={setCreateCoAdminOpen}>
-              <DialogContent style={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 18, color: '#fff', maxWidth: 440 }}>
+              <DialogContent style={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 18, color: '#fff', maxWidth: 'calc(100vw - 32px)', width: '100%' }}>
                 <DialogHeader>
                   <DialogTitle style={{ color: '#fff' }}>Create Co-Admin Account</DialogTitle>
                   <DialogDescription style={{ color: '#888' }}>
@@ -1160,11 +1230,11 @@ const SongUploadForm: React.FC<{ onSubmit: (fd: FormData) => void }> = ({ onSubm
 
   return (
     <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 8 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div className="admin-form-grid">
         <div style={s}><label style={l}>Audio File (MP3, WAV) *</label><input type="file" accept="audio/*" onChange={e => setFile(e.target.files?.[0] || null)} required style={{ color: '#ccc', fontSize: 12 }} /></div>
         <div style={s}><label style={l}>Cover Art / Album Image (Optional)</label><input type="file" accept="image/*" onChange={e => setCoverFile(e.target.files?.[0] || null)} style={{ color: '#ccc', fontSize: 12 }} /></div>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div className="admin-form-grid">
         <div style={s}><label style={l}>Title *</label><input className="input-dark" value={form.title} onChange={f('title')} required placeholder="Song title" /></div>
         <div style={s}><label style={l}>Artist *</label><input className="input-dark" value={form.artist} onChange={f('artist')} required placeholder="Artist name" /></div>
         <div style={s}><label style={l}>Album</label><input className="input-dark" value={form.album} onChange={f('album')} placeholder="Album name" /></div>
@@ -1188,7 +1258,7 @@ const SongEditForm: React.FC<{ song: Song; onSubmit: (d: Partial<Song>) => void 
 
   return (
     <form onSubmit={e => { e.preventDefault(); onSubmit({ ...form, duration: parseInt(form.duration) }); }} style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 8 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div className="admin-form-grid">
         <div style={s}><label style={l}>Title</label><input className="input-dark" value={form.title} onChange={f('title')} required /></div>
         <div style={s}><label style={l}>Artist</label><input className="input-dark" value={form.artist} onChange={f('artist')} required /></div>
         <div style={s}><label style={l}>Album</label><input className="input-dark" value={form.album} onChange={f('album')} /></div>
