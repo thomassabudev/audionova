@@ -30,6 +30,7 @@ const allowedOrigins = [
   'https://audionova-app-b26cd.firebaseapp.com',
   'http://localhost:5173',
   'http://localhost:3000',
+  'http://localhost:3001',
   'http://localhost:5009',
   process.env.FRONTEND_URL,
 ].filter(Boolean);
@@ -149,16 +150,16 @@ async function getSpotifyAccessToken() {
   if (!SPOTIFY_CLIENT_ID || !SPOTIFY_CLIENT_SECRET) {
     throw new Error('Spotify API credentials not configured. Please set SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET in your .env file.');
   }
-  
+
   if (SPOTIFY_CLIENT_ID === 'your_spotify_client_id_here' || SPOTIFY_CLIENT_SECRET === 'your_spotify_client_secret_here') {
     throw new Error('Please replace the placeholder Spotify credentials with your actual API keys from https://developer.spotify.com/dashboard/applications');
   }
-  
+
   const authString = Buffer.from(`${SPOTIFY_CLIENT_ID}:${SPOTIFY_CLIENT_SECRET}`).toString('base64');
-  
+
   try {
-    const response = await axios.post('https://accounts.spotify.com/api/token', 
-      'grant_type=client_credentials', 
+    const response = await axios.post('https://accounts.spotify.com/api/token',
+      'grant_type=client_credentials',
       {
         headers: {
           'Authorization': `Basic ${authString}`,
@@ -166,7 +167,7 @@ async function getSpotifyAccessToken() {
         }
       }
     );
-    
+
     return response.data.access_token;
   } catch (error) {
     console.error('Error getting Spotify access token:', error.response?.data || error.message);
@@ -181,13 +182,13 @@ async function getSpotifyPlaylistTracks(playlistId, accessToken) {
   try {
     // First, let's try to get basic playlist info to see what the issue is
     console.log(`Attempting to fetch playlist: ${playlistId}`);
-    
+
     // Fetch the first 100 tracks
     let allTracks = [];
     let offset = 0;
     const limit = 100;
     let totalTracks = 0;
-    
+
     // First request to get playlist metadata and total track count
     const initialResponse = await axios.get(`https://api.spotify.com/v1/playlists/${playlistId}`, {
       headers: {
@@ -199,24 +200,24 @@ async function getSpotifyPlaylistTracks(playlistId, accessToken) {
         offset: offset
       }
     });
-    
+
     const playlistData = initialResponse.data;
     console.log(`Playlist found: ${playlistData.name} by ${playlistData.owner?.display_name}`);
     console.log(`Playlist is public: ${playlistData.public}`);
     totalTracks = playlistData.tracks.total;
-    
+
     // Add the first batch of tracks
     allTracks = [...playlistData.tracks.items];
-    
+
     // Calculate how many more requests we need to make (up to 400 tracks max)
     const maxTracks = 400;
     const remainingTracks = Math.min(totalTracks, maxTracks) - allTracks.length;
     const additionalRequestsNeeded = Math.ceil(remainingTracks / limit);
-    
+
     // Make additional requests for more tracks (up to 400 total)
     for (let i = 1; i <= additionalRequestsNeeded && allTracks.length < maxTracks; i++) {
       offset = i * limit;
-      
+
       try {
         const response = await axios.get(`https://api.spotify.com/v1/playlists/${playlistId}/tracks`, {
           headers: {
@@ -228,10 +229,10 @@ async function getSpotifyPlaylistTracks(playlistId, accessToken) {
             offset: offset
           }
         });
-        
+
         // Add these tracks to our collection
         allTracks = [...allTracks, ...response.data.items];
-        
+
         // Stop if we've reached our maximum
         if (allTracks.length >= maxTracks) {
           break;
@@ -242,12 +243,12 @@ async function getSpotifyPlaylistTracks(playlistId, accessToken) {
         break;
       }
     }
-    
+
     // Trim to exactly 400 tracks if we have more
     if (allTracks.length > maxTracks) {
       allTracks = allTracks.slice(0, maxTracks);
     }
-    
+
     // Return the playlist data with all tracks
     return {
       ...playlistData,
@@ -261,7 +262,7 @@ async function getSpotifyPlaylistTracks(playlistId, accessToken) {
     console.error('Error getting Spotify playlist:', error.response?.data || error.message);
     console.error('Playlist ID:', playlistId);
     console.error('Access Token:', accessToken ? 'Set' : 'Not set');
-    
+
     // Provide more specific error messages
     if (error.response?.status === 404) {
       throw new Error(`Playlist not found. This could be because: 1) The playlist is private, 2) The playlist ID is incorrect, or 3) The playlist has been deleted. Note: Spotify's Client Credentials flow cannot access private playlists or some curated playlists.`);
@@ -309,7 +310,7 @@ function convertSpotifyToJioSaavn(spotifyTrack) {
     console.warn('convertSpotifyToJioSaavn called with null/undefined track');
     return null;
   }
-  
+
   return {
     id: spotifyTrack.id || '',
     name: spotifyTrack.name || 'Unknown Track',
@@ -400,9 +401,9 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
       // Try MongoDB first
       const existingUser = await User.findOne({ email: email.toLowerCase() });
       if (existingUser) {
-        return res.status(400).json({ 
-          success: false, 
-          error: 'User with this email already exists' 
+        return res.status(400).json({
+          success: false,
+          error: 'User with this email already exists'
         });
       }
 
@@ -436,13 +437,13 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
       });
     } catch (mongoError) {
       console.warn('⚠️ MongoDB registration failed, using fallback storage:', mongoError.message);
-      
+
       // Fallback to in-memory storage
       const existingUser = fallbackUsers.find(u => u.email === email.toLowerCase());
       if (existingUser) {
-        return res.status(400).json({ 
-          success: false, 
-          error: 'User with this email already exists' 
+        return res.status(400).json({
+          success: false,
+          error: 'User with this email already exists'
         });
       }
 
@@ -496,9 +497,9 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
 
     // Validate input
     if (!email || !password) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Email and password are required' 
+      return res.status(400).json({
+        success: false,
+        error: 'Email and password are required'
       });
     }
 
@@ -506,18 +507,18 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
       // Try MongoDB first
       const user = await User.findOne({ email: email.toLowerCase() });
       if (!user) {
-        return res.status(400).json({ 
-          success: false, 
-          error: 'Invalid email or password' 
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid email or password'
         });
       }
 
       // Verify password using the model method
       const isValidPassword = await user.comparePassword(password);
       if (!isValidPassword) {
-        return res.status(400).json({ 
-          success: false, 
-          error: 'Invalid email or password' 
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid email or password'
         });
       }
 
@@ -542,22 +543,22 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
       });
     } catch (mongoError) {
       console.warn('⚠️ MongoDB login failed, using fallback storage:', mongoError.message);
-      
+
       // Fallback to in-memory storage
       const user = fallbackUsers.find(u => u.email === email.toLowerCase());
       if (!user) {
-        return res.status(400).json({ 
-          success: false, 
-          error: 'Invalid email or password' 
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid email or password'
         });
       }
 
       // Verify password
       const isValidPassword = await bcrypt.compare(password, user.password);
       if (!isValidPassword) {
-        return res.status(400).json({ 
-          success: false, 
-          error: 'Invalid email or password' 
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid email or password'
         });
       }
 
@@ -619,7 +620,7 @@ app.post('/api/test/play', async (req, res) => {
 app.get('/api/test/spotify', async (req, res) => {
   try {
     const accessToken = await getSpotifyAccessToken();
-    
+
     // Test with a simple search instead of playlist access
     const testResponse = await axios.get('https://api.spotify.com/v1/search', {
       headers: {
@@ -631,7 +632,7 @@ app.get('/api/test/spotify', async (req, res) => {
         limit: 1
       }
     });
-    
+
     res.json({
       success: true,
       message: 'Spotify API connection working',
@@ -660,7 +661,7 @@ async function getSpotifyEmbedPlaylistData(playlistId) {
 
   const html = response.data;
   const match = html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/) ||
-                html.match(/<script id="initial-state" type="application\/json">([\s\S]*?)<\/script>/);
+    html.match(/<script id="initial-state" type="application\/json">([\s\S]*?)<\/script>/);
 
   if (!match) {
     throw new Error('Unable to extract playlist data from Spotify');
@@ -747,7 +748,7 @@ app.get('/api/import/spotify/:playlistId', apiLimiter, async (req, res) => {
     // Try Spotify Web API first
     const accessToken = await getSpotifyAccessToken();
     const playlistData = await getSpotifyPlaylistTracks(playlistId, accessToken);
-    
+
     if (!playlistData || !playlistData.tracks || !playlistData.tracks.items) {
       throw new Error('Invalid playlist data received from Spotify API');
     }
@@ -800,7 +801,7 @@ app.get('/api/import/spotify/:playlistId', apiLimiter, async (req, res) => {
 app.get('/api/import/youtube/:playlistId', async (req, res) => {
   try {
     const { playlistId } = req.params;
-    
+
     // For YouTube, we would use the YouTube Data API
     // This is a placeholder implementation
     res.json({
@@ -848,8 +849,8 @@ app.get('*', (req, res) => {
   if (fs.existsSync(distIndexPath)) {
     res.sendFile(distIndexPath);
   } else {
-    res.status(200).json({ 
-      status: 'ok', 
+    res.status(200).json({
+      status: 'ok',
       message: 'AudioNova API Server running',
       version: '1.0.0'
     });

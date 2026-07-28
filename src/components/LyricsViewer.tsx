@@ -29,13 +29,14 @@ const SUPPORTED_LANGUAGES = [
   { code: 'fr', label: 'French' },
 ];
 
-const LyricsViewer: React.FC<LyricsViewerProps> = ({ 
-  currentSong, 
-  currentTime, 
+const LyricsViewer: React.FC<LyricsViewerProps> = ({
+  currentSong,
+  currentTime,
   isPlaying,
   onReportLyrics,
   onContributeLyrics
 }) => {
+
   const [lyrics, setLyrics] = useState<LyricsResponse | null>(null);
   const [parsedLines, setParsedLines] = useState<LyricsLine[]>([]);
   const [currentLineIndex, setCurrentLineIndex] = useState<number>(-1);
@@ -59,11 +60,10 @@ const LyricsViewer: React.FC<LyricsViewerProps> = ({
       setTransMode('off');
       return;
     }
-
     const fetchLyrics = async () => {
       setIsLoading(true);
       setError(null);
-      
+
       try {
         const lyricsData = await fetchSyncedLyrics(
           currentSong.id,
@@ -71,8 +71,9 @@ const LyricsViewer: React.FC<LyricsViewerProps> = ({
           currentSong.primaryArtists,
           (currentSong as any).hasLyrics
         );
+
         setLyrics(lyricsData);
-        
+
         if (lyricsData?.lines && lyricsData.lines.length > 0) {
           setParsedLines(lyricsData.lines);
         } else {
@@ -101,7 +102,7 @@ const LyricsViewer: React.FC<LyricsViewerProps> = ({
         break;
       }
     }
-    
+
     setCurrentLineIndex(newIndex);
   }, [currentTime, isPlaying, parsedLines]);
 
@@ -160,7 +161,7 @@ const LyricsViewer: React.FC<LyricsViewerProps> = ({
     return (
       <div className="flex flex-col items-center justify-center h-full p-4 text-center">
         <p className="text-red-500 mb-4">{error}</p>
-        <button 
+        <button
           onClick={() => window.location.reload()}
           className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
         >
@@ -181,9 +182,9 @@ const LyricsViewer: React.FC<LyricsViewerProps> = ({
         <h3 className="text-lg font-medium mb-2">Lyrics not available</h3>
         <p className="text-muted-foreground mb-4">
           {lyrics?.externalUrl ? (
-            <a 
-              href={lyrics.externalUrl} 
-              target="_blank" 
+            <a
+              href={lyrics.externalUrl}
+              target="_blank"
               rel="noopener noreferrer"
               className="text-primary hover:underline"
             >
@@ -193,7 +194,7 @@ const LyricsViewer: React.FC<LyricsViewerProps> = ({
             "We couldn't find lyrics for this song"
           )}
         </p>
-        <button 
+        <button
           onClick={onContributeLyrics}
           className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 mb-2"
         >
@@ -240,11 +241,10 @@ const LyricsViewer: React.FC<LyricsViewerProps> = ({
           {/* 1. Sing in Malayalam Script Mode */}
           <button
             onClick={() => setTransMode(transMode === 'sing_ml' ? 'off' : 'sing_ml')}
-            className={`px-3 py-1 text-xs md:text-sm rounded-full transition-colors flex items-center gap-1 font-medium ${
-              transMode === 'sing_ml' 
-                ? 'bg-red-500 text-white shadow-sm' 
-                : 'bg-muted text-muted-foreground hover:bg-muted/80'
-            }`}
+            className={`px-3 py-1 text-xs md:text-sm rounded-full transition-colors flex items-center gap-1 font-medium ${transMode === 'sing_ml'
+              ? 'bg-red-500 text-white shadow-sm'
+              : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              }`}
             title="Sing along in Malayalam script"
           >
             <span>🎤</span>
@@ -254,11 +254,10 @@ const LyricsViewer: React.FC<LyricsViewerProps> = ({
           {/* 2. Meaning Translation Mode */}
           <button
             onClick={() => setTransMode(transMode === 'meaning' ? 'off' : 'meaning')}
-            className={`px-3 py-1 text-xs md:text-sm rounded-full transition-colors flex items-center gap-1 font-medium ${
-              transMode === 'meaning' 
-                ? 'bg-red-500 text-white shadow-sm' 
-                : 'bg-muted text-muted-foreground hover:bg-muted/80'
-            }`}
+            className={`px-3 py-1 text-xs md:text-sm rounded-full transition-colors flex items-center gap-1 font-medium ${transMode === 'meaning'
+              ? 'bg-red-500 text-white shadow-sm'
+              : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              }`}
             title="Translate song meaning"
           >
             <span>📖</span>
@@ -268,11 +267,10 @@ const LyricsViewer: React.FC<LyricsViewerProps> = ({
           {/* 3. Manglish Sing Mode */}
           <button
             onClick={() => setTransMode(transMode === 'sing_en' ? 'off' : 'sing_en')}
-            className={`px-3 py-1 text-xs md:text-sm rounded-full transition-colors flex items-center gap-1 font-medium ${
-              transMode === 'sing_en' 
-                ? 'bg-red-500 text-white shadow-sm' 
-                : 'bg-muted text-muted-foreground hover:bg-muted/80'
-            }`}
+            className={`px-3 py-1 text-xs md:text-sm rounded-full transition-colors flex items-center gap-1 font-medium ${transMode === 'sing_en'
+              ? 'bg-red-500 text-white shadow-sm'
+              : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              }`}
             title="Sing along in Manglish/English script"
           >
             <span>🔤</span>
@@ -282,11 +280,10 @@ const LyricsViewer: React.FC<LyricsViewerProps> = ({
           {/* Karaoke Mode */}
           <button
             onClick={() => setIsKaraokeMode(!isKaraokeMode)}
-            className={`px-3 py-1 text-xs md:text-sm rounded-full transition-colors font-medium ${
-              isKaraokeMode 
-                ? 'bg-red-500 text-white shadow-sm' 
-                : 'bg-muted text-muted-foreground hover:bg-muted/80'
-            }`}
+            className={`px-3 py-1 text-xs md:text-sm rounded-full transition-colors font-medium ${isKaraokeMode
+              ? 'bg-red-500 text-white shadow-sm'
+              : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              }`}
           >
             Karaoke
           </button>
@@ -294,15 +291,14 @@ const LyricsViewer: React.FC<LyricsViewerProps> = ({
       </div>
 
       {/* Lyrics content */}
-      <div 
+      <div
         ref={lyricsContainerRef}
-        className={`flex-1 overflow-y-auto p-4 ${
-          isKaraokeMode ? 'bg-black' : ''
-        }`}
+        className={`flex-1 overflow-y-auto p-4 ${isKaraokeMode ? 'bg-black' : ''
+          }`}
       >
         {isKaraokeMode ? (
           // Karaoke mode - fullscreen with blurred background
-          <div 
+          <div
             className="fixed inset-0 z-50 flex items-center justify-center p-8"
             style={{
               backgroundImage: currentSong.image ? `url(${getHighestQualityImage(currentSong.image)})` : 'none',
@@ -346,7 +342,7 @@ const LyricsViewer: React.FC<LyricsViewerProps> = ({
                 )}
               </AnimatePresence>
             </div>
-            
+
             {/* Close button */}
             <button
               onClick={() => setIsKaraokeMode(false)}
@@ -364,15 +360,14 @@ const LyricsViewer: React.FC<LyricsViewerProps> = ({
               <div
                 key={index}
                 ref={index === currentLineIndex ? currentLineRef : null}
-                className={`p-3 rounded-xl transition-all duration-300 ${
-                  index === currentLineIndex
-                    ? 'bg-red-500/15 border border-red-500/30 text-white font-semibold scale-[1.01] shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
+                className={`p-3 rounded-xl transition-all duration-300 ${index === currentLineIndex
+                  ? 'bg-red-500/15 border border-red-500/30 text-white font-semibold scale-[1.01] shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+                  }`}
               >
                 {/* Original lyrics line */}
                 <div className="text-base leading-snug">{line.text}</div>
-                
+
                 {/* Processed line (Malayalam Sing Mode / Manglish / Meaning) */}
                 {transMode !== 'off' && (
                   <div className="text-xs text-red-400 font-medium mt-1.5 flex items-center gap-1.5">
@@ -398,7 +393,7 @@ const LyricsViewer: React.FC<LyricsViewerProps> = ({
           <p className="text-xs text-muted-foreground">
             {lyrics.attribution}
           </p>
-          <button 
+          <button
             onClick={onReportLyrics}
             className="text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
@@ -410,4 +405,4 @@ const LyricsViewer: React.FC<LyricsViewerProps> = ({
   );
 };
 
-export default LyricsViewer;
+export default LyricsViewer;

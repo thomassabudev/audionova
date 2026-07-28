@@ -1,6 +1,8 @@
 // src/services/lyricsProvider.ts
 // Service for fetching synced lyrics from licensed providers
-
+const API_BASE_URL = import.meta.env.DEV
+  ? '/api'
+  : `${import.meta.env.VITE_API_BASE_URL}/api`;
 interface LyricsLine {
   time: number; // seconds
   text: string;
@@ -23,29 +25,29 @@ interface LyricsMetadata {
 // Parse LRC format to array of timed lines
 export function parseLRC(lrcText: string): LyricsLine[] {
   if (!lrcText) return [];
-  
+
   const lines: LyricsLine[] = [];
   const timeRegex = /\[(\d{2}):(\d{2})\.(\d{2,3})\]/g;
-  
+
   lrcText.split('\n').forEach(line => {
     const timeMatches = [...line.matchAll(timeRegex)];
-    
+
     if (timeMatches.length > 0 && line.includes(']')) {
       const text = line.substring(line.lastIndexOf(']') + 1).trim();
-      
+
       timeMatches.forEach(match => {
         const minutes = parseInt(match[1], 10);
         const seconds = parseInt(match[2], 10);
         const milliseconds = parseInt(match[3].padEnd(3, '0'), 10);
         const time = minutes * 60 + seconds + milliseconds / 1000;
-        
+
         if (text) {
           lines.push({ time, text });
         }
       });
     }
   });
-  
+
   // Sort by time
   return lines.sort((a, b) => a.time - b.time);
 }
@@ -59,11 +61,11 @@ export async function fetchSyncedLyrics(
 ): Promise<LyricsResponse | null> {
   try {
     const params = new URLSearchParams({ songId: trackId });
-    if (songName)             params.set('songName',   songName);
-    if (artistName)           params.set('artistName', artistName);
+    if (songName) params.set('songName', songName);
+    if (artistName) params.set('artistName', artistName);
     if (hasLyrics !== undefined) params.set('hasLyrics', String(hasLyrics));
 
-    const response = await fetch(`/api/lyrics?${params.toString()}`);
+    const response = await fetch(`${API_BASE_URL}/lyrics?${params.toString()}`);
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
     return await response.json();
   } catch (error) {
@@ -82,7 +84,7 @@ export async function translateLyricsBatch(
   mode: 'sing_ml' | 'sing_en' | 'meaning' = 'sing_ml'
 ): Promise<string[]> {
   if (!lines || lines.length === 0) return [];
-  
+
   const cacheKey = `${mode}_${targetLanguage}_${lines.join('|||')}`;
   if (translationCache.has(cacheKey)) {
     return translationCache.get(cacheKey)!;
@@ -90,7 +92,7 @@ export async function translateLyricsBatch(
 
   try {
     // 1. Try backend API endpoint first
-    const response = await fetch('/api/lyrics/translate', {
+    const response = await fetch(`${API_BASE_URL}/lyrics/translate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ lines, mode, targetLang: targetLanguage }),
@@ -111,7 +113,7 @@ export async function translateLyricsBatch(
   try {
     const fullText = lines.join('\n');
     const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${encodeURIComponent(targetLanguage)}&dt=t&q=${encodeURIComponent(fullText)}`;
-    
+
     const res = await fetch(url);
     if (res.ok) {
       const data = await res.json();
@@ -163,7 +165,7 @@ export function getLyricsMetadata(trackId: string): LyricsMetadata | null {
 export function isLyricsCacheValid(trackId: string): boolean {
   const metadata = getLyricsMetadata(trackId);
   if (!metadata) return false;
-  
+
   const now = Date.now();
   const ttl = 24 * 60 * 60 * 1000; // 24 hours
   return (now - metadata.cachedAt) < ttl;
