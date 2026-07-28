@@ -294,11 +294,9 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
 
     const handleEnded = () => {
-      console.debug('[Player] audio ended, repeatMode:', repeatModeRef.current);
       setCurrentTime(0);
 
       if (repeatModeRef.current === 'one') {
-        console.debug('[Player] Repeat One mode active - restarting track');
         if (audioRef.current) {
           audioRef.current.currentTime = 0;
           audioRef.current.play()
@@ -313,30 +311,24 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
 
     const handlePlay = () => {
-      console.debug('[Player] audio play event - audio is now playing');
       setIsPlaying(true);
     };
 
     const handlePause = () => {
-      console.debug('[Player] audio pause event - audio is now paused');
       setIsPlaying(false);
     };
 
     const handleCanPlay = () => {
-      console.debug('[Player] audio can play');
     };
 
     const handleLoadStart = () => {
-      console.debug('[Player] audio load start');
       setCurrentTime(0);
     };
 
     const handleLoadedData = () => {
-      console.debug('[Player] audio loaded data');
     };
 
     const handleWaiting = () => {
-      console.debug('[Player] audio waiting/buffering');
     };
 
     const handleError = (e: Event) => {
@@ -349,7 +341,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         
         switch (errorCode) {
           case MediaError.MEDIA_ERR_ABORTED:
-            console.debug('[Player] Audio loading was aborted (usually harmless)');
             break;
           case MediaError.MEDIA_ERR_NETWORK:
             console.warn('[Player] Network error loading audio:', errorMessage);
@@ -611,7 +602,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // If Spotify link and no downloadUrl stream, search JioSaavn stream automatically
     if (isSpotifyUrl && (!targetSong.downloadUrl || (Array.isArray(targetSong.downloadUrl) && targetSong.downloadUrl.length === 0))) {
-      console.debug('[Player] Spotify track URL detected, resolving direct MP3 stream:', targetSong.name);
       try {
         const matches = await jiosaavnApi.searchSongs(`${targetSong.name} ${targetSong.primaryArtists || ''}`, 1);
         if (matches && matches.length > 0 && matches[0].downloadUrl) {
@@ -715,7 +705,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           } catch (error: any) {
             // Handle specific error types with reduced console spam
             if (error.name === 'AbortError') {
-              console.debug('[Player] Play request was aborted - this is usually harmless');
               // Don't show error to user for AbortError as it's usually due to rapid clicking
               return;
             } else if (error.name === 'NotAllowedError') {
@@ -769,13 +758,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // Use the actual audio element state instead of React state to avoid race conditions
     const isCurrentlyPlaying = !audio.paused;
     
-    console.debug('[Player] togglePlayPause called, audio element state:', { 
-      paused: audio.paused,
-      isCurrentlyPlaying,
-      reactState: isPlaying,
-      readyState: audio.readyState,
-      src: !!audio.src
-    });
     
     // Immediate state update to prevent UI lag
     setIsPlaying(!isCurrentlyPlaying);
@@ -789,7 +771,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       try {
         if (isCurrentlyPlaying) {
-          console.debug('[Player] Pausing audio');
           try {
             audioRef.current.pause();
             // State will be updated by the 'pause' event listener
@@ -797,7 +778,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             console.warn('[Player] Error pausing audio:', pauseError);
           }
         } else {
-          console.debug('[Player] Starting audio playback');
           
           // Check if audio has a valid source
           if (!audioRef.current.src || audioRef.current.src === '') {
@@ -814,12 +794,10 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             if (playPromise !== undefined) {
               try {
                 await playPromise;
-                console.debug('[Player] Resume playback successful');
                 // State will be updated by the 'play' event listener
               } catch (error: any) {
                 // Handle specific error types with reduced console spam
                 if (error.name === 'AbortError') {
-                  console.debug('[Player] Play request was aborted - this is usually harmless');
                   // Don't show error to user for AbortError as it's usually due to rapid clicking
                   return;
                 } else if (error.name === 'NotAllowedError') {
@@ -854,21 +832,12 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const playNext = () => {
-    console.debug('[Player] playNext called');
     const currentQueue = queueRef.current;
     const currentIndex = queueIndexRef.current;
     const currentPlaylist = activePlaylistRef.current;
     const currentRepeat = repeatModeRef.current;
     const currentShuffle = isShuffleRef.current;
     
-    console.debug('[Player] playNext called with', {
-      queueLength: currentQueue.length,
-      currentIndex: currentIndex,
-      repeatMode: currentRepeat,
-      isShuffle: currentShuffle,
-      playlistId: currentPlaylist?.id || null,
-      playlistTracks: currentPlaylist?.tracks?.length || 0
-    });
     
     const playlistToUse = currentPlaylist?.tracks || currentQueue;
     let playlistIndex = currentPlaylist?.currentIndex !== undefined ? currentPlaylist.currentIndex : currentIndex;
@@ -909,7 +878,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           if (currentRepeat === 'all' || currentRepeat === 'one') {
             nextIndex = 0;
           } else {
-            console.debug('[Player] reached end, stopping');
             setIsPlaying(false);
             if (audioRef.current) {
               audioRef.current.pause();
@@ -920,7 +888,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       }
       
-      console.debug('[Player] playNext -> nextIndex', nextIndex, 'nextTrack', playlistToUse[nextIndex]?.name);
       const nextSong = playlistToUse[nextIndex];
       if (!nextSong) return;
       
@@ -934,7 +901,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setQueueIndex(nextIndex);
       playSong(nextSong);
     } else {
-      console.debug('[Player] queue is empty or invalid index, stopping playback');
       setIsPlaying(false);
       if (audioRef.current) {
         audioRef.current.pause();
@@ -944,7 +910,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const playPrevious = () => {
-    console.debug('[Player] playPrevious called');
     const currentQueue = queueRef.current;
     const currentIndex = queueIndexRef.current;
     const currentPlaylist = activePlaylistRef.current;
@@ -992,7 +957,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Add the missing setPlaylistAndPlay function
   const setPlaylistAndPlay = (playlist: Song[], index: number) => {
-    console.debug('[Player] setPlaylistAndPlay called with', { playlistLength: playlist.length, index });
     
     if (!playlist || playlist.length === 0) {
       console.warn('[Player] setPlaylistAndPlay called with empty playlist');
@@ -1035,13 +999,11 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     
     // Play the selected song immediately
     const songToPlay = validPlaylist[validIndex];
-    console.debug('[Player] setPlaylistAndPlay calling playSong for', songToPlay?.name);
     playSong(songToPlay);
   };
 
   const seekTo = (time: number) => {
     if (audioRef.current && !isNaN(time) && time >= 0) {
-      console.debug('[Player] Seeking to:', time);
       try {
         audioRef.current.currentTime = time;
         setCurrentTime(time);

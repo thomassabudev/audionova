@@ -37,7 +37,6 @@ const AudioElement: React.FC = () => {
 
   React.useEffect(() => {
     if (audioRef.current) {
-      console.debug('[AudioElement] Audio element initialized:', audioRef.current);
     }
   }, [audioRef]);
 
