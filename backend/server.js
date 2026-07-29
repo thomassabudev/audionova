@@ -1,11 +1,10 @@
 const express = require('express');
-console.log("🚀 BUILD VERSION: 2026-07-29-YOUTUBE-IMPORT-V3");
 const axios = require('axios');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const path = require('path');
+const path = require('path'); cls
 require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 const { Innertube } = require('youtubei.js');
 
