@@ -80,7 +80,7 @@ const SongCardSkeleton = () => (
 );
 
 const LoadingGrid = ({ count = 6 }: { count?: number }) => (
-  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+  <div className="grid grid-flow-col auto-cols-[42vw] sm:grid-flow-row sm:auto-cols-auto sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 overflow-x-auto sm:overflow-visible snap-x snap-mandatory sm:snap-none pb-4 sm:pb-0 scrollbar-hide [&>*]:snap-start">
     {Array.from({ length: count }, (_, i) => (
       <SongCardSkeleton key={i} />
     ))}
@@ -957,7 +957,7 @@ const HomeView: React.FC = () => {
               {forYouLoading ? (
                 <LoadingGrid count={6} />
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                <div id="carousel-foryou" className="grid grid-flow-col auto-cols-[42vw] sm:grid-flow-row sm:auto-cols-auto sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 overflow-x-auto sm:overflow-visible snap-x snap-mandatory sm:snap-none pb-4 sm:pb-0 scrollbar-hide [&>*]:snap-start">
                   {(showAllForYou ? forYouSongs : forYouSongs.slice(0, 6)).map((song, i) => (
                     <SongCard
                       key={`foryou-${song.id}-${i}`}
@@ -1011,7 +1011,11 @@ const HomeView: React.FC = () => {
                   )}
                 </Button>
 
-                <Button variant="ghost" className="text-red-500 hover:text-red-600 hover:bg-red-50" onClick={() => setShowAllNewReleases(!showAllNewReleases)}>
+                <Button 
+                  variant="ghost" 
+                  className="text-red-500 hover:text-red-600 hover:bg-red-50" 
+                  onClick={() => setShowAllNewReleases(!showAllNewReleases)}
+                >
                   {showAllNewReleases ? 'Show Less' : 'See All'}
                 </Button>
               </div>
@@ -1027,7 +1031,7 @@ const HomeView: React.FC = () => {
               />
             ) : (
               <>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                <div id="carousel-newreleases" className="grid grid-flow-col auto-cols-[42vw] sm:grid-flow-row sm:auto-cols-auto sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 overflow-x-auto sm:overflow-visible snap-x snap-mandatory sm:snap-none pb-4 sm:pb-0 scrollbar-hide [&>*]:snap-start">
                   {newReleases.slice(0, showAllNewReleases ? MAX_EXPANDED : MAX_SMALL_GRID).map((song, idx) => (
                     <SongCard
                       key={`new-${song.id}-${idx}`}
@@ -1060,13 +1064,17 @@ const HomeView: React.FC = () => {
                     Clear
                   </Button>
                 )}
-                <Button variant="ghost" className="text-red-500 hover:text-red-600 hover:bg-red-50" onClick={() => setShowAllRecentlyPlayed(!showAllRecentlyPlayed)}>
+                <Button 
+                  variant="ghost" 
+                  className="text-red-500 hover:text-red-600 hover:bg-red-50" 
+                  onClick={() => setShowAllRecentlyPlayed(!showAllRecentlyPlayed)}
+                >
                   {showAllRecentlyPlayed ? 'Show Less' : 'See All'}
                 </Button>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            <div id="carousel-recentlyplayed" className="grid grid-flow-col auto-cols-[42vw] sm:grid-flow-row sm:auto-cols-auto sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 overflow-x-auto sm:overflow-visible snap-x snap-mandatory sm:snap-none pb-4 sm:pb-0 scrollbar-hide [&>*]:snap-start">
               {recentlyPlayed.slice(0, showAllRecentlyPlayed ? 50 : MAX_SMALL_GRID).map((song, idx) => (
                 <SongCard
                   key={`recent-${song.id}-${idx}`}
@@ -1100,7 +1108,11 @@ const HomeView: React.FC = () => {
                   <RefreshCw className="w-4 h-4" />
                 )}
               </Button>
-              <Button variant="ghost" className="text-red-500 hover:text-red-600 hover:bg-red-50" onClick={() => setShowAllMalayalam(!showAllMalayalam)}>
+              <Button 
+                variant="ghost" 
+                className="text-red-500 hover:text-red-600 hover:bg-red-50" 
+                onClick={() => setShowAllMalayalam(!showAllMalayalam)}
+              >
                 {showAllMalayalam ? 'Show Less' : 'See All'}
               </Button>
             </div>
@@ -1114,7 +1126,7 @@ const HomeView: React.FC = () => {
               message="No Malayalam songs available"
             />
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            <div id="carousel-malayalam" className="grid grid-flow-col auto-cols-[42vw] sm:grid-flow-row sm:auto-cols-auto sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 overflow-x-auto sm:overflow-visible snap-x snap-mandatory sm:snap-none pb-4 sm:pb-0 scrollbar-hide [&>*]:snap-start">
               {malayalamSongs.slice(0, showAllMalayalam ? 50 : MAX_SMALL_GRID).map((song, idx) => (
                 <SongCard
                   key={`malayalam-${song.id}-${idx}`}
@@ -1149,7 +1161,11 @@ const HomeView: React.FC = () => {
                   <RefreshCw className="w-4 h-4" />
                 )}
               </Button>
-              <Button variant="ghost" className="text-red-500 hover:text-red-600 hover:bg-red-50" onClick={() => setShowAllTamil(!showAllTamil)}>
+              <Button 
+                variant="ghost" 
+                className="text-red-500 hover:text-red-600 hover:bg-red-50" 
+                onClick={() => setShowAllTamil(!showAllTamil)}
+              >
                 {showAllTamil ? 'Show Less' : 'See All'}
               </Button>
             </div>
@@ -1163,7 +1179,7 @@ const HomeView: React.FC = () => {
               message="No Tamil songs available"
             />
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            <div id="carousel-tamil" className="grid grid-flow-col auto-cols-[42vw] sm:grid-flow-row sm:auto-cols-auto sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 overflow-x-auto sm:overflow-visible snap-x snap-mandatory sm:snap-none pb-4 sm:pb-0 scrollbar-hide [&>*]:snap-start">
               {tamilSongs.slice(0, showAllTamil ? 50 : MAX_SMALL_GRID).map((song, idx) => (
                 <SongCard
                   key={`tamil-${song.id}-${idx}`}

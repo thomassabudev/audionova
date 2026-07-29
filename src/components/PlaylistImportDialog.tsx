@@ -34,8 +34,18 @@ const PlaylistImportDialog: React.FC<PlaylistImportDialogProps> = ({ children })
 
   const validateYoutubeUrl = (url: string) => {
     if (!url) return true; // Not required
-    const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com\/playlist\?list=|youtu\.be\/playlist\?list=)([a-zA-Z0-9_-]+)/;
-    return youtubeRegex.test(url);
+    try {
+      const urlString = url.startsWith('http') ? url : `https://${url}`;
+      const parsedUrl = new URL(urlString);
+      const validHostnames = ['youtube.com', 'www.youtube.com', 'music.youtube.com', 'youtu.be'];
+      
+      if (!validHostnames.includes(parsedUrl.hostname)) return false;
+      if (!parsedUrl.pathname.includes('playlist')) return false;
+      
+      return !!parsedUrl.searchParams.get('list');
+    } catch (e) {
+      return false;
+    }
   };
 
   const extractSpotifyId = (url: string) => {
@@ -44,8 +54,14 @@ const PlaylistImportDialog: React.FC<PlaylistImportDialogProps> = ({ children })
   };
 
   const extractYoutubeId = (url: string) => {
-    const match = url.match(/[?&]list=([a-zA-Z0-9_-]+)/);
-    return match ? match[1] : null;
+    try {
+      const urlString = url.startsWith('http') ? url : `https://${url}`;
+      const parsedUrl = new URL(urlString);
+      return parsedUrl.searchParams.get('list');
+    } catch (e) {
+      const match = url.match(/[?&]list=([a-zA-Z0-9_-]+)/);
+      return match ? match[1] : null;
+    }
   };
 
   const handleImport = async (e: React.FormEvent, saveAfterImport: boolean = false) => {
@@ -139,8 +155,29 @@ const PlaylistImportDialog: React.FC<PlaylistImportDialogProps> = ({ children })
           throw new Error(data.error || 'Failed to import playlist');
         }
         
-        toast.success('YouTube Playlist Import Started', {
-          description: 'YouTube playlist import functionality would be implemented here.',
+        // Validate that we have tracks
+        if (!data.playlist || !data.playlist.tracks || data.playlist.tracks.length === 0) {
+          throw new Error('No tracks found in the imported playlist');
+        }
+        
+        // Add songs to queue
+        setQueue(data.playlist.tracks);
+        
+        // Save playlist to library
+        const playlistToSave = {
+          id: data.playlist.id,
+          name: data.playlist.name,
+          description: data.playlist.description,
+          tracks: data.playlist.tracks,
+          image: data.playlist.image,
+          createdAt: new Date(),
+          version: 1,
+        };
+        
+        savePlaylist(playlistToSave);
+        
+        toast.success('Playlist Imported & Saved!', {
+          description: `Added ${data.playlist.tracks.length} songs to your queue and saved "${data.playlist.name}" to your library`,
         });
         
         setOpen(false);

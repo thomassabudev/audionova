@@ -162,7 +162,7 @@ const TrendingSongsSection: React.FC<TrendingSongsSectionProps> = ({
   const displayedSongs = showAll ? songs : songs.slice(0, initialShowCount);
 
 const LoadingGrid = ({ count = 6 }: { count?: number }) => (
-  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+  <div className="grid grid-flow-col auto-cols-[42vw] sm:grid-flow-row sm:auto-cols-auto sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 overflow-x-auto sm:overflow-visible snap-x snap-mandatory sm:snap-none pb-4 sm:pb-0 scrollbar-hide [&>*]:snap-start">
     {Array.from({ length: count }).map((_, i) => (
       <div key={`trending-skeleton-${i}`} className="animate-pulse space-y-3">
         <div className="aspect-square bg-muted rounded-xl" />
@@ -219,7 +219,7 @@ const LoadingGrid = ({ count = 6 }: { count?: number }) => (
       {loading || refreshing ? (
         <LoadingGrid count={showAll ? 12 : initialShowCount} />
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+        <div id="carousel-trending" className="grid grid-flow-col auto-cols-[42vw] sm:grid-flow-row sm:auto-cols-auto sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 overflow-x-auto sm:overflow-visible snap-x snap-mandatory sm:snap-none pb-4 sm:pb-0 scrollbar-hide [&>*]:snap-start">
           <AnimatePresence mode="popLayout">
             {displayedSongs.map((song, index) => {
               const delta = formatDelta(song.delta);

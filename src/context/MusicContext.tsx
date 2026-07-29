@@ -613,6 +613,23 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     }
 
+    const isYouTubeUrl = (targetSong.id || '').startsWith('yt:') || (targetSong.url || '').includes('youtube.com') || (targetSong.url || '').includes('youtu.be');
+    
+    // If YouTube link, point the player to our Backend Proxy for JIT stream resolution
+    if (isYouTubeUrl) {
+      try {
+        const urlMatch = targetSong.url?.match(/[?&]v=([^&]+)/) || targetSong.url?.match(/youtu\.be\/([^?]+)/);
+        const videoId = targetSong.id.startsWith('yt:') ? targetSong.id.replace('yt:', '') : (urlMatch ? urlMatch[1] : null);
+        if (videoId) {
+          const proxyUrl = `${API_ENDPOINTS.BASE_URL}/api/stream/youtube/${videoId}`;
+          targetSong.downloadUrl = [{ quality: 'highest', link: proxyUrl }];
+          targetSong.url = proxyUrl;
+        }
+      } catch (err) {
+        console.warn('[Player] YouTube stream setup failed:', err);
+      }
+    }
+
     // Select optimal audio source with preferred quality
     let audioSourceInfo: AudioSourceInfo;
     
