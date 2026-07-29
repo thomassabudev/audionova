@@ -4,7 +4,7 @@ const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const path = require('path'); cls
+const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 const { Innertube } = require('youtubei.js');
 
