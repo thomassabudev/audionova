@@ -45,6 +45,7 @@ import { Input } from './ui/input';
 import { toast } from 'sonner';
 import type { Song } from '../services/jiosaavnApi';
 import { getHighestQualityImage } from '../services/jiosaavnApi';
+import { musicService } from '../services/musicService';
 import { 
   DndContext, 
   closestCenter,
@@ -237,39 +238,11 @@ const SearchModal: React.FC<{
     
     setIsLoading(true);
     try {
-      // Use the existing JioSaavn API service
-      const response = await fetch(`https://jiosaavn-api-privatecvc2.vercel.app/search/songs?query=${encodeURIComponent(query)}&limit=20`);
-      const data = await response.json();
+      // Use the existing unified music service used across the application
+      const songs = await musicService.searchSongs(query, 20);
       
-      if (data?.data?.results) {
-        // Convert JioSaavn format to our Song format
-        const songs: Song[] = data.data.results.map((item: any) => ({
-          id: item.id,
-          name: item.name,
-          primaryArtists: item.primaryArtists,
-          duration: item.duration,
-          image: item.image || [],
-          album: {
-            id: item.album?.id || '',
-            name: item.album?.name || 'Unknown Album',
-            url: item.album?.url || ''
-          },
-          year: item.year || '',
-          releaseDate: item.releaseDate || '',
-          label: item.label || '',
-          primaryArtistsId: item.primaryArtistsId || '',
-          featuredArtists: item.featuredArtists || '',
-          featuredArtistsId: item.featuredArtistsId || '',
-          explicitContent: item.explicitContent || false,
-          playCount: item.playCount || 0,
-          language: item.language || 'Unknown',
-          hasLyrics: item.hasLyrics || false,
-          url: item.url || '',
-          copyright: item.copyright || '',
-          downloadUrl: item.downloadUrl || []
-        }));
-        
-        setSearchResults(songs);
+      if (songs && songs.length > 0) {
+        setSearchResults(songs as Song[]);
       } else {
         setSearchResults([]);
       }
