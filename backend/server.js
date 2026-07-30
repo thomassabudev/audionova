@@ -841,17 +841,19 @@ app.get('/api/import/youtube/:playlistId', apiLimiter, async (req, res) => {
     }
 
     let allItems = [...playlist.items];
-    let continuation = playlist.has_continuation;
+    let currentFeed = playlist;
+    let continuation = currentFeed.has_continuation;
 
     // Fetch continuations for large playlists (up to 1000 items to prevent timeouts)
     let pageCount = 0;
     while (continuation && pageCount < 10) {
       pageCount++;
       try {
-        const nextData = await playlist.getContinuation();
+        const nextData = await currentFeed.getContinuation();
         if (nextData && nextData.items && nextData.items.length > 0) {
           allItems = [...allItems, ...nextData.items];
           continuation = nextData.has_continuation;
+          currentFeed = nextData;
         } else {
           continuation = false;
         }
@@ -927,8 +929,17 @@ app.get('/api/import/youtube/:playlistId', apiLimiter, async (req, res) => {
     });
 
     console.log(`7. Number of mapped Song objects BEFORE filtering: ${tracks.length}`);
-    const filteredTracks = tracks.filter(Boolean);
-    console.log(`8. Number of Song objects AFTER filtering: ${filteredTracks.length}`);
+    let filteredTracks = tracks.filter(Boolean);
+    
+    // Deduplicate tracks by video ID (YouTube playlists can contain the same video multiple times)
+    const uniqueIds = new Set();
+    filteredTracks = filteredTracks.filter(track => {
+      if (uniqueIds.has(track.id)) return false;
+      uniqueIds.add(track.id);
+      return true;
+    });
+    
+    console.log(`8. Number of Song objects AFTER filtering and deduplication: ${filteredTracks.length}`);
 
     const finalResponse = {
       success: true,

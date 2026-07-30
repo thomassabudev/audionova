@@ -13,7 +13,7 @@ export const FIREBASE_CONFIG = {
 
 // API endpoints
 export const API_ENDPOINTS = {
-  BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5009',
+  BASE_URL: import.meta.env.VITE_API_BASE_URL,
   NEW_RELEASES: '/api/new-releases',
   SEARCH: '/api/search',
 };

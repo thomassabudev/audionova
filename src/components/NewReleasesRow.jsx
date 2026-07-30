@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 import { useMusic } from '../context/MusicContext';
 import { toast } from 'sonner';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5009';
+const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
 const NewReleasesRow = () => {
   const [newReleases, setNewReleases] = useState([]);
@@ -15,10 +15,10 @@ const NewReleasesRow = () => {
   const [error, setError] = useState(null);
   const [retryCount, setRetryCount] = useState(0);
   const [selectedLanguage, setSelectedLanguage] = useState('all'); // Language filter state
-  
-  const { 
-    playSong, 
-    setQueue, 
+
+  const {
+    playSong,
+    setQueue,
     isSongLiked,
     addToLikedSongs,
     removeFromLikedSongs
@@ -28,21 +28,21 @@ const NewReleasesRow = () => {
   const fetchNewReleases = async (retryAttempt = 0) => {
     try {
       setLoading(true);
-      
+
       // Build API endpoint based on selected language
       let apiUrl = `${API_BASE}/api/new-releases?limit=25`;
       if (selectedLanguage !== 'all') {
         apiUrl = `${API_BASE}/api/new-releases/${selectedLanguage}?limit=25`;
       }
-      
+
       console.log('Fetching from URL:', apiUrl);
-      
+
       // Try to fetch from the new releases API first
       const response = await fetch(apiUrl);
-      
+
       if (response.ok) {
         const data = await response.json();
-        
+
         if (data.success) {
           console.log('Received data:', data);
           // Convert backend song format to frontend format
@@ -58,7 +58,7 @@ const NewReleasesRow = () => {
             releaseDate: song.release_date || new Date().toISOString(),
             language: song.language || 'unknown' // Include language information
           })).filter(song => song.id && song.name); // Filter out invalid songs
-          
+
           console.log('Converted songs:', convertedSongs);
           setNewReleases(convertedSongs);
           setError(null);
@@ -73,7 +73,7 @@ const NewReleasesRow = () => {
       }
     } catch (err) {
       console.error('Error fetching new releases:', err);
-      
+
       // Fallback to trending songs if new releases API fails
       try {
         const trendingResponse = await fetch(`${API_BASE}/api/trending?limit=25`);
@@ -93,7 +93,7 @@ const NewReleasesRow = () => {
               releaseDate: song.release_date || new Date().toISOString(),
               language: song.language || 'unknown'
             })).filter(song => song.id && song.name); // Filter out invalid songs
-            
+
             setNewReleases(convertedSongs);
             setError('Showing trending songs as fallback');
           } else {
@@ -104,7 +104,7 @@ const NewReleasesRow = () => {
         }
       } catch (trendingErr) {
         console.error('Error fetching trending songs as fallback:', trendingErr);
-        
+
         // If this is a retry attempt, don't retry again to avoid infinite loop
         if (retryAttempt < 3) {
           // Retry after a delay
@@ -147,20 +147,20 @@ const NewReleasesRow = () => {
         // Only attempt SSE connection if we're not already showing an error
         if (!error || !error.includes('Failed to load')) {
           eventSource = new EventSource(`${API_BASE}/api/new-releases/events`);
-          
+
           eventSource.onopen = () => {
             console.log('SSE connection opened for new releases');
           };
-          
+
           eventSource.onmessage = (event) => {
             try {
               const data = JSON.parse(event.data);
-              
+
               if (data.type === 'connected') {
                 console.log('Connected to new releases stream');
                 return;
               }
-              
+
               if (data.type === 'new_release') {
                 setNewReleases(prev => {
                   // Check if song already exists to avoid duplicates
@@ -189,7 +189,7 @@ const NewReleasesRow = () => {
                         }
                       }
                     });
-                    
+
                     // Convert and add to the beginning of the list, but limit to 25 songs
                     const convertedSong = {
                       id: data.song.external_id,
@@ -203,7 +203,7 @@ const NewReleasesRow = () => {
                       releaseDate: data.song.release_date,
                       language: data.song.language || 'unknown'
                     };
-                    
+
                     // Add new song to the beginning but keep only the first 25 songs
                     const updatedList = [convertedSong, ...prev];
                     return updatedList.slice(0, 25);
@@ -215,15 +215,15 @@ const NewReleasesRow = () => {
               console.error('Error parsing SSE message:', err);
             }
           };
-          
+
           eventSource.onerror = (err) => {
             console.error('SSE error for new releases:', err);
-            
+
             // Close the connection and attempt to reconnect after 10 seconds
             if (eventSource) {
               eventSource.close();
             }
-            
+
             reconnectTimeout = setTimeout(() => {
               connect();
             }, 10000);
@@ -259,12 +259,12 @@ const NewReleasesRow = () => {
 
   const isNewRelease = (releaseDate) => {
     if (!releaseDate) return false;
-    
+
     const release = new Date(releaseDate);
     const now = new Date();
     const diffTime = Math.abs(now - release);
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     return diffDays <= 7;
   };
 
@@ -311,7 +311,7 @@ const NewReleasesRow = () => {
         <div className="flex items-center gap-2">
           <p className="text-sm text-muted-foreground">Updated hourly — mixed latest hits</p>
           <div className="relative">
-            <select 
+            <select
               value={selectedLanguage}
               onChange={(e) => setSelectedLanguage(e.target.value)}
               className="appearance-none bg-card border border-border rounded-md py-1 pl-3 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
@@ -325,13 +325,13 @@ const NewReleasesRow = () => {
           </div>
         </div>
       </div>
-      
+
       {error && (
         <div className="mb-4 p-3 bg-yellow-100 border border-yellow-400 text-yellow-700 rounded flex items-center justify-between">
           <p>{error}</p>
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleRetry}
             className="border-yellow-600 text-yellow-700 hover:bg-yellow-200"
           >
@@ -340,14 +340,14 @@ const NewReleasesRow = () => {
           </Button>
         </div>
       )}
-      
+
       {newReleases.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">
           <Music className="w-12 h-12 mx-auto mb-4" />
           <p>No songs available at the moment</p>
-          <Button 
-            variant="outline" 
-            className="mt-4" 
+          <Button
+            variant="outline"
+            className="mt-4"
             onClick={handleRetry}
           >
             <RefreshCw className="w-4 h-4 mr-2" />
@@ -385,9 +385,9 @@ const NewReleasesRow = () => {
               </div>
               <div className="relative">
                 {song.image && song.image.length > 0 ? (
-                  <img 
-                    src={getHighestQualityImage(song.image)} 
-                    alt={song.name} 
+                  <img
+                    src={getHighestQualityImage(song.image)}
+                    alt={song.name}
                     className="w-full aspect-square object-cover"
                     onError={(e) => {
                       // Fallback to gradient if image fails to load
@@ -405,7 +405,7 @@ const NewReleasesRow = () => {
                   </div>
                 )}
                 <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button 
+                  <Button
                     size="icon"
                     className="h-12 w-12 rounded-full bg-red-500 hover:bg-red-600 shadow-lg"
                     onClick={(e) => {
@@ -419,7 +419,7 @@ const NewReleasesRow = () => {
                   </Button>
                 </div>
                 <div className="absolute top-2 right-8 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button 
+                  <Button
                     size="icon"
                     variant="secondary"
                     className="h-8 w-8 rounded-full bg-black/50 hover:bg-black/70"
