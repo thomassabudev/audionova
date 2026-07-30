@@ -4,11 +4,13 @@ import { motion } from 'framer-motion';
 interface PlayingEqualizerBadgeProps {
   className?: string;
   size?: 'sm' | 'md' | 'lg';
+  isPlaying?: boolean;
 }
 
 export const PlayingEqualizerBadge: React.FC<PlayingEqualizerBadgeProps> = ({
   className = '',
-  size = 'md'
+  size = 'md',
+  isPlaying = true
 }) => {
   // Use exact valid Tailwind classes and explicit pixel animation values
   const sizeConfigs = {
@@ -28,23 +30,23 @@ export const PlayingEqualizerBadge: React.FC<PlayingEqualizerBadgeProps> = ({
     >
       <motion.span
         className={`${config.barWidth} rounded-full bg-gradient-to-t from-red-600 via-rose-500 to-amber-400 inline-block`}
-        animate={{ height: [Math.round(h * 0.2), Math.round(h * 0.85), Math.round(h * 0.35), Math.round(h * 0.95), Math.round(h * 0.25)] }}
-        transition={{ duration: 0.75, repeat: Infinity, ease: 'easeInOut' }}
+        animate={isPlaying ? { height: [Math.round(h * 0.2), Math.round(h * 0.85), Math.round(h * 0.35), Math.round(h * 0.95), Math.round(h * 0.25)] } : { height: Math.round(h * 0.3) }}
+        transition={{ duration: 0.75, repeat: isPlaying ? Infinity : 0, ease: 'easeInOut' }}
       />
       <motion.span
         className={`${config.barWidth} rounded-full bg-gradient-to-t from-rose-500 via-pink-500 to-red-400 inline-block`}
-        animate={{ height: [Math.round(h * 0.8), Math.round(h * 0.25), Math.round(h * 0.95), Math.round(h * 0.45), Math.round(h * 0.8)] }}
-        transition={{ duration: 0.6, repeat: Infinity, ease: 'easeInOut' }}
+        animate={isPlaying ? { height: [Math.round(h * 0.8), Math.round(h * 0.25), Math.round(h * 0.95), Math.round(h * 0.45), Math.round(h * 0.8)] } : { height: Math.round(h * 0.6) }}
+        transition={{ duration: 0.6, repeat: isPlaying ? Infinity : 0, ease: 'easeInOut' }}
       />
       <motion.span
         className={`${config.barWidth} rounded-full bg-gradient-to-t from-pink-500 via-purple-500 to-rose-400 inline-block`}
-        animate={{ height: [Math.round(h * 0.35), Math.round(h * 0.95), Math.round(h * 0.3), Math.round(h * 0.85), Math.round(h * 0.25)] }}
-        transition={{ duration: 0.85, repeat: Infinity, ease: 'easeInOut' }}
+        animate={isPlaying ? { height: [Math.round(h * 0.35), Math.round(h * 0.95), Math.round(h * 0.3), Math.round(h * 0.85), Math.round(h * 0.25)] } : { height: Math.round(h * 0.4) }}
+        transition={{ duration: 0.85, repeat: isPlaying ? Infinity : 0, ease: 'easeInOut' }}
       />
       <motion.span
         className={`${config.barWidth} rounded-full bg-gradient-to-t from-purple-500 to-rose-500 inline-block`}
-        animate={{ height: [Math.round(h * 0.9), Math.round(h * 0.3), Math.round(h * 0.75), Math.round(h * 0.25), Math.round(h * 0.9)] }}
-        transition={{ duration: 0.7, repeat: Infinity, ease: 'easeInOut' }}
+        animate={isPlaying ? { height: [Math.round(h * 0.9), Math.round(h * 0.3), Math.round(h * 0.75), Math.round(h * 0.25), Math.round(h * 0.9)] } : { height: Math.round(h * 0.8) }}
+        transition={{ duration: 0.7, repeat: isPlaying ? Infinity : 0, ease: 'easeInOut' }}
       />
     </div>
   );

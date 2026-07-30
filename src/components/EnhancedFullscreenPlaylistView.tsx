@@ -181,7 +181,7 @@ const QueueItem = ({
     >
       <div className="text-sm text-muted-foreground w-6 flex items-center justify-center">
         {isCurrent ? (
-          <PlayingEqualizerBadge size="sm" />
+          <PlayingEqualizerBadge size="sm" isPlaying={isPlaying} />
         ) : (
           index + 1
         )}
@@ -245,7 +245,7 @@ const SongItem = React.memo(({
     >
       <div className="col-span-1 flex items-center min-w-0">
         {isCurrent ? (
-          <PlayingEqualizerBadge size="sm" />
+          <PlayingEqualizerBadge size="sm" isPlaying={isPlaying} />
         ) : (
           <span className="text-muted-foreground text-xs md:text-sm group-hover:hidden">{displayIndex}</span>
         )}
