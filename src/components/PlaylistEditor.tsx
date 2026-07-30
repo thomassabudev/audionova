@@ -50,7 +50,8 @@ import {
   DndContext, 
   closestCenter,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   DragOverlay,
@@ -125,7 +126,7 @@ const SortableTrackItem: React.FC<{
       <button
         {...attributes}
         {...listeners}
-        className="p-1 rounded cursor-grab active:cursor-grabbing hover:bg-accent"
+        className="p-3 -m-2 sm:p-1 sm:m-0 rounded cursor-grab active:cursor-grabbing hover:bg-accent touch-none"
         aria-label="Drag to reorder track"
       >
         <GripVertical className="w-4 h-4 text-muted-foreground" />
@@ -539,7 +540,13 @@ const PlaylistEditor: React.FC<PlaylistEditorProps> = ({
 
 
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(MouseSensor),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 250,
+        tolerance: 5,
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
