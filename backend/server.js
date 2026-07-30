@@ -984,12 +984,19 @@ app.get('/api/stream/youtube/:videoId', async (req, res) => {
     }
 
     const streamUrl = await format.decipher(innertubeClient.session.player);
-    console.log("========== YOUTUBE STREAM DEBUG ==========");
+    console.log("========== STREAM DEBUG ==========");
     console.log("Video ID:", videoId);
-    console.log("Format:", format);
-    console.log("Stream URL:", streamUrl);
-    console.log("Stream URL Type:", typeof streamUrl);
-    console.log("==========================================");
+
+    console.log("Has streaming_data:", !!info.streaming_data);
+    console.log("Streaming data:", info.streaming_data);
+
+    console.log("Adaptive formats:",
+      info.streaming_data?.adaptive_formats?.length);
+
+    console.log("Formats:",
+      info.streaming_data?.formats?.length);
+
+    console.log("=================================");
 
     // Set CORS headers for the frontend Web Audio API
     res.setHeader('Access-Control-Allow-Origin', '*');
