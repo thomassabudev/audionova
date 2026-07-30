@@ -972,6 +972,32 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
+  // Use refs to avoid re-registering media session handlers on every render
+  const playNextRef = useRef(playNext);
+  const playPreviousRef = useRef(playPrevious);
+
+  useEffect(() => {
+    playNextRef.current = playNext;
+    playPreviousRef.current = playPrevious;
+  }, [playNext, playPrevious]);
+
+  // Register Media Session API handlers for Bluetooth controls
+  useEffect(() => {
+    if ('mediaSession' in navigator) {
+      try {
+        navigator.mediaSession.setActionHandler('nexttrack', () => {
+          playNextRef.current();
+        });
+        
+        navigator.mediaSession.setActionHandler('previoustrack', () => {
+          playPreviousRef.current();
+        });
+      } catch (e) {
+        console.warn('Media Session API action handlers could not be set', e);
+      }
+    }
+  }, []); // Run only once to prevent Bluetooth freezing
+
   // Add the missing setPlaylistAndPlay function
   const setPlaylistAndPlay = (playlist: Song[], index: number) => {
     
