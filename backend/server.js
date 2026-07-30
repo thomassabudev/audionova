@@ -9,6 +9,18 @@ require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 const { Innertube } = require('youtubei.js');
 const ytdl = require('@distube/ytdl-core');
 
+// Initialize ytdl agent with cookies to bypass "Sign in to confirm you're not a bot"
+let ytdlAgent = undefined;
+if (process.env.YOUTUBE_COOKIES) {
+  try {
+    const cookies = JSON.parse(process.env.YOUTUBE_COOKIES);
+    ytdlAgent = ytdl.createAgent(cookies);
+    console.log('✅ YouTube ytdl-core Agent initialized with authenticated cookies');
+  } catch (err) {
+    console.error('❌ Failed to parse YOUTUBE_COOKIES env variable. Ensure it is a valid JSON array.', err.message);
+  }
+}
+
 let innertubeClient = null;
 Innertube.create().then(yt => {
   innertubeClient = yt;
@@ -970,10 +982,11 @@ app.get('/api/stream/youtube/:videoId', async (req, res) => {
   try {
     const { videoId } = req.params;
 
-    // Use @distube/ytdl-core to reliably resolve the streaming URL.
-    // This runs completely in Node.js and avoids Python/yt-dlp binary dependencies on Railway.
+    // Use @distube/ytdl-core with the authenticated agent to reliably resolve the streaming URL.
+    // The agent bypasses the "Sign in to confirm you're not a bot" restriction on Railway IPs.
     const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-    const info = await ytdl.getInfo(videoUrl);
+    const options = ytdlAgent ? { agent: ytdlAgent } : {};
+    const info = await ytdl.getInfo(videoUrl, options);
     const format = ytdl.chooseFormat(info.formats, { quality: 'highestaudio' });
 
     if (!format || !format.url) {
