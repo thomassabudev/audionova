@@ -7,6 +7,7 @@ const bcrypt = require('bcryptjs');
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 const { Innertube } = require('youtubei.js');
+const youtubedl = require('youtube-dl-exec');
 
 let innertubeClient = null;
 Innertube.create().then(yt => {
@@ -969,35 +970,21 @@ app.get('/api/stream/youtube/:videoId', async (req, res) => {
   try {
     const { videoId } = req.params;
 
-    if (!innertubeClient) {
-      return res.status(503).json({ success: false, error: 'YouTube client not initialized yet' });
+    // Use yt-dlp (via youtube-dl-exec) to extract the streaming URL reliably,
+    // bypassing YouTube's bot protection and client streaming restrictions.
+    const output = await youtubedl(`https://www.youtube.com/watch?v=${videoId}`, {
+      dumpSingleJson: true,
+      noCheckCertificates: true,
+      noWarnings: true,
+      preferFreeFormats: true,
+      format: 'bestaudio/best'
+    });
+
+    if (!output || !output.url) {
+      return res.status(404).json({ success: false, error: 'No suitable audio format found via yt-dlp' });
     }
 
-    // Use getInfo with 'IOS' client instead of getBasicInfo.
-    // getBasicInfo only retrieves lightweight metadata and often omits streaming_data for Music tracks.
-    // getInfo fetches the full player response, and using 'IOS' bypasses Web client restrictions.
-    const info = await innertubeClient.getInfo(videoId, 'IOS');
-    console.log("========== STREAM DEBUG ==========");
-    console.log("Video ID:", videoId);
-    console.log("Info constructor:", info?.constructor?.name);
-    console.log("Has streaming_data:", !!info.streaming_data);
-    console.log("Info keys:", Object.keys(info));
-
-    if (info.streaming_data) {
-      console.log("Formats:", info.streaming_data.formats?.length);
-      console.log("Adaptive formats:", info.streaming_data.adaptive_formats?.length);
-    }
-
-    console.log("=================================");
-
-    // Find best audio format (prefer m4a/aac, then webm/opus)
-    const format = info.chooseFormat({ type: 'audio', quality: 'best' });
-
-    if (!format || !format.decipher) {
-      return res.status(404).json({ success: false, error: 'No suitable audio format found' });
-    }
-
-    const streamUrl = await format.decipher(innertubeClient.session.player);
+    const streamUrl = output.url;
 
     // Set CORS headers for the frontend Web Audio API
     res.setHeader('Access-Control-Allow-Origin', '*');
