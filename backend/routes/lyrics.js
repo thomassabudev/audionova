@@ -66,12 +66,15 @@ router.get('/', async (req, res) => {
     return res.status(400).json({ error: 'Missing songId parameter' });
   }
 
+  const normSongName = songName ? normalizeMetadata(songName) : '';
+  const normArtistName = artistName ? normalizeMetadata(artistName) : '';
+  const normAlbumName = albumName ? normalizeMetadata(albumName) : '';
+
   // ── 1. Try lrclib.net (free, no key needed — good for English/Hindi) ──────
   if (songName) {
-    const normSongName = normalizeMetadata(songName);
-    const normArtistName = normalizeMetadata(artistName);
-    const normAlbumName = normalizeMetadata(albumName);
 
+    console.log(`[Lyrics] Trying LRCLib for: ${normSongName} - ${normArtistName}`);
+    const lrcStart = Date.now();
     try {
       const lrclibParams = { 
         track_name: normSongName, 
@@ -109,13 +112,21 @@ router.get('/', async (req, res) => {
           });
         }
       }
+      console.log(`[Lyrics] LRCLib failed (no results). Time: ${Date.now() - lrcStart}ms`);
     } catch (err) {
-      console.warn('[Lyrics] lrclib.net error:', err.message);
+      console.warn(`[Lyrics] LRCLib error: ${err.message}. Time: ${Date.now() - lrcStart}ms`);
     }
+  } else {
+    console.log(`[Lyrics] LRCLib skipped (no songName)`);
   }
 
-  // ── 2. JioSaavn lyrics (for Indian songs with hasLyrics=true) ─────────────
-  if (hasLyrics === 'true') {
+  // ── 2. JioSaavn lyrics (Fallback for Indian songs) ────────────────────────
+  // We no longer depend on hasLyrics === 'true' because the JioSaavn API natively 
+  // returns a safe failure response if lyrics do not exist, and relying on the flag 
+  // sometimes prevents legitimate lyrics lookups (e.g. metadata glitches or updates).
+  if (songId) {
+    console.log(`[Lyrics] Trying JioSaavn for songId: ${songId}`);
+    const jioStart = Date.now();
     try {
       const jiosaavnRes = await axios.get('https://www.jiosaavn.com/api.php', {
         params: {
@@ -153,14 +164,17 @@ router.get('/', async (req, res) => {
           externalUrl:  null,
         });
       }
+      console.log(`[Lyrics] JioSaavn failed (no lyrics text). Time: ${Date.now() - jioStart}ms`);
     } catch (err) {
-      console.warn('[Lyrics] JioSaavn lyrics error:', err.message);
+      console.warn(`[Lyrics] JioSaavn error: ${err.message}. Time: ${Date.now() - jioStart}ms`);
     }
   }
 
   // ── 3. Try Musixmatch if API key is set ───────────────────────────────────
   const musixmatchApiKey = process.env.MUSIXMATCH_API_KEY;
   if (musixmatchApiKey && songName) {
+    console.log(`[Lyrics] Trying Musixmatch for: ${songName}`);
+    const mmStart = Date.now();
     try {
       const searchRes = await axios.get('https://api.musixmatch.com/ws/1.1/track.search', {
         params: {
@@ -194,13 +208,18 @@ router.get('/', async (req, res) => {
           });
         }
       }
+      console.log(`[Lyrics] Musixmatch failed (no lyrics body). Time: ${Date.now() - mmStart}ms`);
     } catch (err) {
-      console.warn('[Lyrics] Musixmatch error:', err.message);
+      console.warn(`[Lyrics] Musixmatch error: ${err.message}. Time: ${Date.now() - mmStart}ms`);
     }
+  } else {
+    console.log(`[Lyrics] Musixmatch skipped (missing API key or songName)`);
   }
 
   // ── 4. Try Vagalume API (Final Fallback) ──────────────────────────────────
   if (songName && artistName) {
+    console.log(`[Lyrics] Trying Vagalume for: ${songName} - ${artistName}`);
+    const vagStart = Date.now();
     try {
       const vagalumeApiKey = process.env.VAGALUME_API_KEY || '';
       const vagalumeRes = await axios.get('https://api.vagalume.com.br/search.php', {
@@ -224,12 +243,16 @@ router.get('/', async (req, res) => {
           });
         }
       }
+      console.log(`[Lyrics] Vagalume failed (no exact match). Time: ${Date.now() - vagStart}ms`);
     } catch (err) {
-      console.warn('[Lyrics] Vagalume error:', err.message);
+      console.warn(`[Lyrics] Vagalume error: ${err.message}. Time: ${Date.now() - vagStart}ms`);
     }
+  } else {
+    console.log(`[Lyrics] Vagalume skipped (missing songName or artistName)`);
   }
 
   // ── 5. No lyrics found ────────────────────────────────────────────────────
+  console.log(`[Lyrics] Returning No Lyrics Found`);
   return res.json({
     providerId:   'none',
     providerName: 'No Provider',
