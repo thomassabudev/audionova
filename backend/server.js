@@ -930,7 +930,7 @@ app.get('/api/import/youtube/:playlistId', apiLimiter, async (req, res) => {
 
     console.log(`7. Number of mapped Song objects BEFORE filtering: ${tracks.length}`);
     let filteredTracks = tracks.filter(Boolean);
-    
+
     // Deduplicate tracks by video ID (YouTube playlists can contain the same video multiple times)
     const uniqueIds = new Set();
     filteredTracks = filteredTracks.filter(track => {
@@ -938,7 +938,7 @@ app.get('/api/import/youtube/:playlistId', apiLimiter, async (req, res) => {
       uniqueIds.add(track.id);
       return true;
     });
-    
+
     console.log(`8. Number of Song objects AFTER filtering and deduplication: ${filteredTracks.length}`);
 
     const finalResponse = {
@@ -983,7 +983,13 @@ app.get('/api/stream/youtube/:videoId', async (req, res) => {
       return res.status(404).json({ success: false, error: 'No suitable audio format found' });
     }
 
-    const streamUrl = format.decipher(innertubeClient.session.player);
+    const streamUrl = await format.decipher(innertubeClient.session.player);
+    console.log("========== YOUTUBE STREAM DEBUG ==========");
+    console.log("Video ID:", videoId);
+    console.log("Format:", format);
+    console.log("Stream URL:", streamUrl);
+    console.log("Stream URL Type:", typeof streamUrl);
+    console.log("==========================================");
 
     // Set CORS headers for the frontend Web Audio API
     res.setHeader('Access-Control-Allow-Origin', '*');
