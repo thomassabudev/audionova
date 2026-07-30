@@ -7,7 +7,7 @@ const bcrypt = require('bcryptjs');
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 const { Innertube } = require('youtubei.js');
-const youtubedl = require('youtube-dl-exec');
+const ytdl = require('@distube/ytdl-core');
 
 let innertubeClient = null;
 Innertube.create().then(yt => {
@@ -970,21 +970,17 @@ app.get('/api/stream/youtube/:videoId', async (req, res) => {
   try {
     const { videoId } = req.params;
 
-    // Use yt-dlp (via youtube-dl-exec) to extract the streaming URL reliably,
-    // bypassing YouTube's bot protection and client streaming restrictions.
-    const output = await youtubedl(`https://www.youtube.com/watch?v=${videoId}`, {
-      dumpSingleJson: true,
-      noCheckCertificates: true,
-      noWarnings: true,
-      preferFreeFormats: true,
-      format: 'bestaudio/best'
-    });
+    // Use @distube/ytdl-core to reliably resolve the streaming URL.
+    // This runs completely in Node.js and avoids Python/yt-dlp binary dependencies on Railway.
+    const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    const info = await ytdl.getInfo(videoUrl);
+    const format = ytdl.chooseFormat(info.formats, { quality: 'highestaudio' });
 
-    if (!output || !output.url) {
-      return res.status(404).json({ success: false, error: 'No suitable audio format found via yt-dlp' });
+    if (!format || !format.url) {
+      return res.status(404).json({ success: false, error: 'No suitable audio format found via ytdl-core' });
     }
 
-    const streamUrl = output.url;
+    const streamUrl = format.url;
 
     // Set CORS headers for the frontend Web Audio API
     res.setHeader('Access-Control-Allow-Origin', '*');
