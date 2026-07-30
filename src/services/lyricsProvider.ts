@@ -16,9 +16,9 @@ interface LyricsResponse {
   externalUrl?: string;
 }
 
-interface LyricsMetadata {
+interface CachedLyrics {
   trackId: string;
-  providerLyricsId: string;
+  response: LyricsResponse;
   cachedAt: number; // timestamp
 }
 
@@ -57,17 +57,37 @@ export async function fetchSyncedLyrics(
   trackId: string,
   songName?: string,
   artistName?: string,
-  hasLyrics?: boolean
+  hasLyrics?: boolean,
+  duration?: number,
+  albumName?: string
 ): Promise<LyricsResponse | null> {
+  // Check cache first (TTL 24h)
+  if (isLyricsCacheValid(trackId)) {
+    const cached = getLyricsCache(trackId);
+    if (cached) return cached.response;
+  }
+
   try {
     const params = new URLSearchParams({ songId: trackId });
     if (songName) params.set('songName', songName);
     if (artistName) params.set('artistName', artistName);
     if (hasLyrics !== undefined) params.set('hasLyrics', String(hasLyrics));
+    if (duration) params.set('duration', String(duration));
+    if (albumName) params.set('albumName', albumName);
 
     const response = await fetch(`${API_BASE_URL}/lyrics?${params.toString()}`);
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-    return await response.json();
+    
+    const lyricsData: LyricsResponse = await response.json();
+    
+    // Save to cache
+    saveLyricsCache({
+      trackId,
+      response: lyricsData,
+      cachedAt: Date.now()
+    });
+
+    return lyricsData;
   } catch (error) {
     console.warn('Failed to fetch lyrics:', error);
     return null;
@@ -139,36 +159,37 @@ export async function translateLyrics(text: string, targetLanguage: string = 'ml
   return result[0] || text;
 }
 
-// Save lyrics metadata (not the full text)
-export function saveLyricsMetadata(metadata: LyricsMetadata): void {
+// Save full lyrics response to cache
+export function saveLyricsCache(cacheData: CachedLyrics): void {
   try {
-    const key = `lyrics_metadata_${metadata.trackId}`;
-    localStorage.setItem(key, JSON.stringify(metadata));
+    const key = `lyrics_cache_${cacheData.trackId}`;
+    localStorage.setItem(key, JSON.stringify(cacheData));
   } catch (error) {
-    console.warn('Failed to save lyrics metadata:', error);
+    console.warn('Failed to save lyrics cache:', error);
   }
 }
 
-// Get lyrics metadata
-export function getLyricsMetadata(trackId: string): LyricsMetadata | null {
+// Get cached lyrics response
+export function getLyricsCache(trackId: string): CachedLyrics | null {
   try {
-    const key = `lyrics_metadata_${trackId}`;
+    const key = `lyrics_cache_${trackId}`;
     const data = localStorage.getItem(key);
     return data ? JSON.parse(data) : null;
   } catch (error) {
-    console.warn('Failed to get lyrics metadata:', error);
+    console.warn('Failed to get lyrics cache:', error);
     return null;
   }
 }
 
-// Check if lyrics are cached and still valid (24h TTL)
+// Check if lyrics cache is still valid (24h TTL for success, 6h TTL for negative cache)
 export function isLyricsCacheValid(trackId: string): boolean {
-  const metadata = getLyricsMetadata(trackId);
-  if (!metadata) return false;
+  const cacheData = getLyricsCache(trackId);
+  if (!cacheData) return false;
 
   const now = Date.now();
-  const ttl = 24 * 60 * 60 * 1000; // 24 hours
-  return (now - metadata.cachedAt) < ttl;
+  const isNegative = cacheData.response.providerId === 'none';
+  const ttl = isNegative ? 6 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000; // 6 hours or 24 hours
+  return (now - cacheData.cachedAt) < ttl;
 }
 
-export type { LyricsLine, LyricsResponse, LyricsMetadata };
+export type { LyricsLine, LyricsResponse, CachedLyrics as LyricsMetadata };

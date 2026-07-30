@@ -69,7 +69,9 @@ const LyricsViewer: React.FC<LyricsViewerProps> = ({
           currentSong.id,
           currentSong.name,
           currentSong.primaryArtists,
-          (currentSong as any).hasLyrics
+          (currentSong as any).hasLyrics,
+          currentSong.duration,
+          currentSong.album?.name
         );
 
         setLyrics(lyricsData);
@@ -238,17 +240,17 @@ const LyricsViewer: React.FC<LyricsViewerProps> = ({
             </select>
           )}
 
-          {/* 1. Sing in Malayalam Script Mode */}
+          {/* 1. Sing in Romanized Script Mode */}
           <button
-            onClick={() => setTransMode(transMode === 'sing_ml' ? 'off' : 'sing_ml')}
-            className={`px-3 py-1 text-xs md:text-sm rounded-full transition-colors flex items-center gap-1 font-medium ${transMode === 'sing_ml'
+            onClick={() => setTransMode(transMode === 'sing_en' ? 'off' : 'sing_en')}
+            className={`px-3 py-1 text-xs md:text-sm rounded-full transition-colors flex items-center gap-1 font-medium ${transMode === 'sing_en'
               ? 'bg-red-500 text-white shadow-sm'
               : 'bg-muted text-muted-foreground hover:bg-muted/80'
               }`}
-            title="Sing along in Malayalam script"
+            title="Sing along in Romanized English script"
           >
             <span>🎤</span>
-            <span>{transMode === 'sing_ml' ? 'Malayalam Sing Mode (ON)' : 'Sing (മലയാളത്തിൽ)'}</span>
+            <span>{transMode === 'sing_en' ? 'Sing (Romanized) ON' : 'Sing (Romanized)'}</span>
           </button>
 
           {/* 2. Meaning Translation Mode */}

@@ -32,9 +32,35 @@ function parsePlainLyrics(text) {
     .map((text, i) => ({ time: i * 3, text }));
 }
 
-// GET /api/lyrics?songId=...&songName=...&artistName=...&hasLyrics=true
+// Normalize metadata to improve matching (Phase 1)
+function normalizeMetadata(text) {
+  if (!text) return '';
+  // Normalize unicode
+  let normalized = text.normalize('NFC');
+  
+  // Remove common tags
+  normalized = normalized
+    .replace(/\(official.*?\)/gi, '')
+    .replace(/\(lyrics\)/gi, '')
+    .replace(/\(audio\)/gi, '')
+    .replace(/\(hd\)/gi, '')
+    .replace(/\(4k\)/gi, '')
+    .replace(/\[official.*?\]/gi, '')
+    .replace(/\[lyrics\]/gi, '')
+    .replace(/\[audio\]/gi, '')
+    .replace(/\[remastered\]/gi, '')
+    .replace(/\bfeat\.?\b/gi, '')
+    .replace(/\bft\.?\b/gi, '');
+    
+  // Remove unnecessary symbols (keep unicode letters, numbers, and spaces)
+  normalized = normalized.replace(/[^\p{L}\p{N}\s]/gu, ' ');
+  
+  return normalized.replace(/\s+/g, ' ').trim();
+}
+
+// GET /api/lyrics?songId=...&songName=...&artistName=...&hasLyrics=true&duration=...&albumName=...
 router.get('/', async (req, res) => {
-  const { songId, songName, artistName, hasLyrics } = req.query;
+  const { songId, songName, artistName, hasLyrics, duration, albumName } = req.query;
 
   if (!songId) {
     return res.status(400).json({ error: 'Missing songId parameter' });
@@ -42,9 +68,21 @@ router.get('/', async (req, res) => {
 
   // ── 1. Try lrclib.net (free, no key needed — good for English/Hindi) ──────
   if (songName) {
+    const normSongName = normalizeMetadata(songName);
+    const normArtistName = normalizeMetadata(artistName);
+    const normAlbumName = normalizeMetadata(albumName);
+
     try {
+      const lrclibParams = { 
+        track_name: normSongName, 
+        artist_name: normArtistName || ''
+      };
+      
+      if (normAlbumName) lrclibParams.album_name = normAlbumName;
+      if (duration) lrclibParams.duration = duration;
+
       const searchRes = await axios.get('https://lrclib.net/api/search', {
-        params: { track_name: songName, artist_name: artistName || '' },
+        params: lrclibParams,
         timeout: 6000,
       });
 
@@ -126,8 +164,8 @@ router.get('/', async (req, res) => {
     try {
       const searchRes = await axios.get('https://api.musixmatch.com/ws/1.1/track.search', {
         params: {
-          q_track:        songName,
-          q_artist:       artistName || '',
+          q_track:        normSongName,
+          q_artist:       normArtistName || '',
           page_size:      1,
           s_track_rating: 'desc',
           format:         'json',
@@ -161,7 +199,37 @@ router.get('/', async (req, res) => {
     }
   }
 
-  // ── 4. No lyrics found ────────────────────────────────────────────────────
+  // ── 4. Try Vagalume API (Final Fallback) ──────────────────────────────────
+  if (songName && artistName) {
+    try {
+      const vagalumeApiKey = process.env.VAGALUME_API_KEY || '';
+      const vagalumeRes = await axios.get('https://api.vagalume.com.br/search.php', {
+        params: {
+          art: normArtistName,
+          mus: normSongName,
+          apikey: vagalumeApiKey,
+        },
+        timeout: 8000,
+      });
+
+      if (vagalumeRes.data?.type === 'exact' || vagalumeRes.data?.type === 'aprox') {
+        const mus = vagalumeRes.data?.mus?.[0];
+        if (mus && mus.text) {
+          return res.json({
+            providerId:   'vagalume',
+            providerName: 'Vagalume',
+            lines:        parsePlainLyrics(mus.text),
+            attribution:  'Lyrics provided by Vagalume',
+            externalUrl:  mus.url || null,
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('[Lyrics] Vagalume error:', err.message);
+    }
+  }
+
+  // ── 5. No lyrics found ────────────────────────────────────────────────────
   return res.json({
     providerId:   'none',
     providerName: 'No Provider',
@@ -210,9 +278,17 @@ router.post('/translate', async (req, res) => {
 
       let romanizedFullText = '';
       if (response.data && Array.isArray(response.data[0])) {
-        romanizedFullText = response.data[0]
-          .map(chunk => (chunk && chunk[3]) ? chunk[3] : (chunk && chunk[0] ? chunk[0] : ''))
-          .join('');
+        // Find chunks that explicitly provide romanization (index 3)
+        const romanChunks = response.data[0].filter(chunk => chunk && chunk[3]);
+        if (romanChunks.length > 0) {
+          romanizedFullText = romanChunks.map(chunk => chunk[3]).join('');
+        }
+      }
+
+      // If no romanization was returned (e.g. text is already in English letters), use original text.
+      // We NEVER fallback to chunk[0] because chunk[0] is semantic translation!
+      if (!romanizedFullText || !romanizedFullText.trim()) {
+        romanizedFullText = fullText;
       }
 
       if (!romanizedFullText) romanizedFullText = fullText;
@@ -227,49 +303,7 @@ router.post('/translate', async (req, res) => {
       return res.json({ success: true, translatedLines: resultLines, mode, targetLang });
     }
 
-    // MODE 3: Malayalam Pronunciation (Sing in Malayalam Script - മലയാളം ലിപിയിൽ പാടാൻ)
-    const romanUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=rm&dt=t&q=${encodeURIComponent(fullText)}`;
-    const response = await axios.get(romanUrl, { timeout: 8000 });
 
-    let romanizedFullText = '';
-    if (response.data && Array.isArray(response.data[0])) {
-      romanizedFullText = response.data[0]
-        .map(chunk => (chunk && chunk[3]) ? chunk[3] : (chunk && chunk[0] ? chunk[0] : ''))
-        .join('');
-    }
-
-    if (!romanizedFullText) romanizedFullText = fullText;
-
-    const resultLines = await Promise.all(
-      lines.map(async (origLine, idx) => {
-        const textToConvert = (romanizedFullText.split('\n')[idx] || origLine).trim();
-        if (!textToConvert) return origLine;
-
-        try {
-          // Google InputTools API for Malayalam script transliteration
-          const inputToolsUrl = `https://inputtools.google.com/request?text=${encodeURIComponent(textToConvert)}&itc=ml-t-i0-und&num=1`;
-          const itRes = await axios.get(inputToolsUrl, { timeout: 4000 });
-          
-          if (itRes.data && itRes.data[0] === 'SUCCESS' && itRes.data[1] && itRes.data[1][0] && itRes.data[1][0][1]) {
-            const mlResult = itRes.data[1][0][1][0];
-            if (mlResult && mlResult.trim()) return mlResult.trim();
-          }
-        } catch (e) { /* ignore */ }
-
-        // Fallback: translate to Malayalam
-        try {
-          const mlTransUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=ml&dt=t&q=${encodeURIComponent(origLine)}`;
-          const mlRes = await axios.get(mlTransUrl, { timeout: 4000 });
-          if (mlRes.data && mlRes.data[0] && mlRes.data[0][0] && mlRes.data[0][0][0]) {
-            return mlRes.data[0][0][0];
-          }
-        } catch (e) { /* ignore */ }
-
-        return textToConvert;
-      })
-    );
-
-    return res.json({ success: true, translatedLines: resultLines, mode, targetLang: 'ml' });
 
   } catch (err) {
     console.error('[Lyrics Translate] Error:', err.message);
