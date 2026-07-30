@@ -987,16 +987,23 @@ app.get('/api/stream/youtube/:videoId', async (req, res) => {
     const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
     const options = ytdlAgent ? { agent: ytdlAgent } : {};
     const info = await ytdl.getInfo(videoUrl, options);
-    console.log("Formats:", info.formats.length);
-    console.log(
-      info.formats.map(f => ({
-        itag: f.itag,
-        mimeType: f.mimeType,
-        hasAudio: f.hasAudio,
-        hasVideo: f.hasVideo,
-        isHLS: f.isHLS
-      }))
-    );
+    console.log("================================");
+    console.log("Video Title:", info.videoDetails?.title);
+    console.log("Formats Count:", info.formats?.length);
+
+    if (info.formats?.length) {
+      console.log(
+        info.formats.map(f => ({
+          itag: f.itag,
+          mime: f.mimeType,
+          hasAudio: f.hasAudio,
+          hasVideo: f.hasVideo,
+          audioCodec: f.audioCodec,
+          isHLS: f.isHLS,
+          isDashMPD: f.isDashMPD
+        }))
+      );
+    }
     const format = ytdl.chooseFormat(info.formats, { quality: 'highestaudio' });
 
     if (!format || !format.url) {
