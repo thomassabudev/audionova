@@ -973,8 +973,10 @@ app.get('/api/stream/youtube/:videoId', async (req, res) => {
       return res.status(503).json({ success: false, error: 'YouTube client not initialized yet' });
     }
 
-    // Get basic info to decipher formats
-    const info = await innertubeClient.getBasicInfo(videoId);
+    // Use getInfo with 'IOS' client instead of getBasicInfo.
+    // getBasicInfo only retrieves lightweight metadata and often omits streaming_data for Music tracks.
+    // getInfo fetches the full player response, and using 'IOS' bypasses Web client restrictions.
+    const info = await innertubeClient.getInfo(videoId, 'IOS');
 
     // Find best audio format (prefer m4a/aac, then webm/opus)
     const format = info.chooseFormat({ type: 'audio', quality: 'best' });
@@ -984,19 +986,6 @@ app.get('/api/stream/youtube/:videoId', async (req, res) => {
     }
 
     const streamUrl = await format.decipher(innertubeClient.session.player);
-    console.log("========== STREAM DEBUG ==========");
-    console.log("Video ID:", videoId);
-
-    console.log("Has streaming_data:", !!info.streaming_data);
-    console.log("Streaming data:", info.streaming_data);
-
-    console.log("Adaptive formats:",
-      info.streaming_data?.adaptive_formats?.length);
-
-    console.log("Formats:",
-      info.streaming_data?.formats?.length);
-
-    console.log("=================================");
 
     // Set CORS headers for the frontend Web Audio API
     res.setHeader('Access-Control-Allow-Origin', '*');
