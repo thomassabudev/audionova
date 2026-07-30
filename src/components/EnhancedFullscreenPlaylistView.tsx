@@ -355,7 +355,8 @@ const EnhancedFullscreenPlaylistView: React.FC<EnhancedFullscreenPlaylistViewPro
     toggleShuffle,
     playNext, // Add missing variable
     playPrevious, // Add missing variable
-    audioRef
+    audioRef,
+    savePlaylist
   } = useMusic();
   
   // Initialize playlist with version if not present
@@ -1365,6 +1366,7 @@ const EnhancedFullscreenPlaylistView: React.FC<EnhancedFullscreenPlaylistViewPro
         isOpen={isEditorOpen}
         onClose={() => setIsEditorOpen(false)}
         onSave={(updatedPlaylist) => {
+          savePlaylist(updatedPlaylist as any);
           setPlaylist(updatedPlaylist);
           setIsEditorOpen(false);
         }}
