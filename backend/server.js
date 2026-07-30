@@ -977,6 +977,18 @@ app.get('/api/stream/youtube/:videoId', async (req, res) => {
     // getBasicInfo only retrieves lightweight metadata and often omits streaming_data for Music tracks.
     // getInfo fetches the full player response, and using 'IOS' bypasses Web client restrictions.
     const info = await innertubeClient.getInfo(videoId, 'IOS');
+    console.log("========== STREAM DEBUG ==========");
+    console.log("Video ID:", videoId);
+    console.log("Info constructor:", info?.constructor?.name);
+    console.log("Has streaming_data:", !!info.streaming_data);
+    console.log("Info keys:", Object.keys(info));
+
+    if (info.streaming_data) {
+      console.log("Formats:", info.streaming_data.formats?.length);
+      console.log("Adaptive formats:", info.streaming_data.adaptive_formats?.length);
+    }
+
+    console.log("=================================");
 
     // Find best audio format (prefer m4a/aac, then webm/opus)
     const format = info.chooseFormat({ type: 'audio', quality: 'best' });
