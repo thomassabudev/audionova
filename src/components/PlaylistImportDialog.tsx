@@ -22,7 +22,6 @@ interface PlaylistImportDialogProps {
 const PlaylistImportDialog: React.FC<PlaylistImportDialogProps> = ({ children }) => {
   const [open, setOpen] = useState(false);
   const [spotifyUrl, setSpotifyUrl] = useState('');
-  const [youtubeUrl, setYoutubeUrl] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const { setQueue, savePlaylist } = useMusic();
 
@@ -32,37 +31,12 @@ const PlaylistImportDialog: React.FC<PlaylistImportDialogProps> = ({ children })
     return spotifyRegex.test(url);
   };
 
-  const validateYoutubeUrl = (url: string) => {
-    if (!url) return true; // Not required
-    try {
-      const urlString = url.startsWith('http') ? url : `https://${url}`;
-      const parsedUrl = new URL(urlString);
-      const validHostnames = ['youtube.com', 'www.youtube.com', 'music.youtube.com', 'youtu.be'];
-      
-      if (!validHostnames.includes(parsedUrl.hostname)) return false;
-      if (!parsedUrl.pathname.includes('playlist')) return false;
-      
-      return !!parsedUrl.searchParams.get('list');
-    } catch (e) {
-      return false;
-    }
-  };
 
   const extractSpotifyId = (url: string) => {
     const match = url.match(/spotify\.com\/playlist\/([a-zA-Z0-9]+)/);
     return match ? match[1] : null;
   };
 
-  const extractYoutubeId = (url: string) => {
-    try {
-      const urlString = url.startsWith('http') ? url : `https://${url}`;
-      const parsedUrl = new URL(urlString);
-      return parsedUrl.searchParams.get('list');
-    } catch (e) {
-      const match = url.match(/[?&]list=([a-zA-Z0-9_-]+)/);
-      return match ? match[1] : null;
-    }
-  };
 
   const handleImport = async (e: React.FormEvent, saveAfterImport: boolean = false) => {
     e.preventDefault();
@@ -70,9 +44,8 @@ const PlaylistImportDialog: React.FC<PlaylistImportDialogProps> = ({ children })
     
     // Validate URLs
     const isSpotifyValid = validateSpotifyUrl(spotifyUrl);
-    const isYoutubeValid = validateYoutubeUrl(youtubeUrl);
     
-    if ((spotifyUrl && !isSpotifyValid) || (youtubeUrl && !isYoutubeValid)) {
+    if (spotifyUrl && !isSpotifyValid) {
       toast.error('Invalid URL format', {
         description: 'Please check the URL format and try again.',
       });
@@ -137,53 +110,9 @@ const PlaylistImportDialog: React.FC<PlaylistImportDialogProps> = ({ children })
         });
         
         setOpen(false);
-      } else if (youtubeUrl) {
-        const playlistId = extractYoutubeId(youtubeUrl);
-        if (!playlistId) {
-          throw new Error('Invalid YouTube playlist URL');
-        }
-        
-        // Call backend API to import YouTube playlist
-        const response = await fetch(`${API_ENDPOINTS.BASE_URL}/api/import/youtube/${playlistId}`);
-        const data = await response.json();
-        
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${data.error || response.statusText}`);
-        }
-        
-        if (!data.success) {
-          throw new Error(data.error || 'Failed to import playlist');
-        }
-        
-        // Validate that we have tracks
-        if (!data.playlist || !data.playlist.tracks || data.playlist.tracks.length === 0) {
-          throw new Error('No tracks found in the imported playlist');
-        }
-        
-        // Add songs to queue
-        setQueue(data.playlist.tracks);
-        
-        // Save playlist to library
-        const playlistToSave = {
-          id: data.playlist.id,
-          name: data.playlist.name,
-          description: data.playlist.description,
-          tracks: data.playlist.tracks,
-          image: data.playlist.image,
-          createdAt: new Date(),
-          version: 1,
-        };
-        
-        savePlaylist(playlistToSave);
-        
-        toast.success('Playlist Imported & Saved!', {
-          description: `Added ${data.playlist.tracks.length} songs to your queue and saved "${data.playlist.name}" to your library`,
-        });
-        
-        setOpen(false);
       } else {
         toast.info('No URL provided', {
-          description: 'Please enter a Spotify or YouTube playlist URL.',
+          description: 'Please enter a Spotify playlist URL.',
         });
       }
     } catch (error) {
@@ -216,7 +145,7 @@ const PlaylistImportDialog: React.FC<PlaylistImportDialogProps> = ({ children })
             Import Playlist
           </DialogTitle>
           <DialogDescription>
-            Import songs from Spotify or YouTube playlists
+            Import songs from Spotify playlists
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={(e) => handleImport(e, false)} className="space-y-4">
@@ -235,19 +164,19 @@ const PlaylistImportDialog: React.FC<PlaylistImportDialogProps> = ({ children })
             />
           </div>
           
-          <div className="space-y-2">
-            <Label htmlFor="youtube-url" className="flex items-center gap-2 text-xs font-semibold">
-              <Youtube className="w-4 h-4 text-red-500" />
-              YouTube Playlist URL
-            </Label>
-            <Input
-              id="youtube-url"
-              placeholder="https://www.youtube.com/playlist?list=..."
-              value={youtubeUrl}
-              onChange={(e) => setYoutubeUrl(e.target.value)}
-              autoComplete="off"
-              className="text-xs sm:text-sm"
-            />
+          <div className="space-y-2 opacity-60">
+            <div className="flex items-center justify-between">
+              <Label className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+                <Youtube className="w-4 h-4 text-red-500/50" />
+                YouTube Playlist Import
+              </Label>
+              <span className="text-[10px] font-medium bg-red-500/10 text-red-500 px-2 py-0.5 rounded-full">
+                Coming Soon
+              </span>
+            </div>
+            <div className="p-3 bg-secondary/30 rounded-md border border-border/50 text-xs text-muted-foreground">
+              This feature is temporarily unavailable while we work on a more reliable implementation.
+            </div>
           </div>
           
           <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center sm:justify-end gap-2 pt-4">
@@ -262,7 +191,7 @@ const PlaylistImportDialog: React.FC<PlaylistImportDialogProps> = ({ children })
             </Button>
             <Button 
               type="submit" 
-              disabled={isImporting || (!spotifyUrl && !youtubeUrl)}
+              disabled={isImporting || !spotifyUrl}
               variant="secondary"
               className="w-full sm:w-auto text-xs sm:text-sm"
             >
@@ -278,7 +207,7 @@ const PlaylistImportDialog: React.FC<PlaylistImportDialogProps> = ({ children })
             <Button 
               type="button"
               onClick={(e) => handleImport(e, true)}
-              disabled={isImporting || (!spotifyUrl && !youtubeUrl)}
+              disabled={isImporting || !spotifyUrl}
               className="w-full sm:w-auto text-xs sm:text-sm flex items-center justify-center gap-2"
             >
               <Save className="w-4 h-4" />

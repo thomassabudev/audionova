@@ -6,7 +6,6 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '.env') });
-const { Innertube } = require('youtubei.js');
 const ytdl = require('@distube/ytdl-core');
 
 // Initialize ytdl agent with cookies to bypass "Sign in to confirm you're not a bot"
@@ -21,13 +20,7 @@ if (process.env.YOUTUBE_COOKIES) {
   }
 }
 
-let innertubeClient = null;
-Innertube.create().then(yt => {
-  innertubeClient = yt;
-  console.log('✅ YouTube Innertube client initialized');
-}).catch(err => {
-  console.error('❌ Failed to initialize YouTube client:', err.message);
-});
+
 
 // MongoDB connection
 const { connectToMongoDB } = require('./config/mongodb');
@@ -819,163 +812,6 @@ app.get('/api/import/spotify/:playlistId', apiLimiter, async (req, res) => {
   }
 });
 
-// API endpoint to import YouTube playlist
-app.get('/api/import/youtube/:playlistId', apiLimiter, async (req, res) => {
-  try {
-    const { playlistId } = req.params;
-    console.log(`\n--- DEBUGGING YOUTUBE IMPORT PIPELINE ---`);
-    console.log(`1. Extracted playlist ID: ${playlistId}`);
-
-    if (!innertubeClient) {
-      console.log(`2. youtubei.js failed: Client not initialized`);
-      return res.status(503).json({ success: false, error: 'YouTube client not initialized yet. Please try again in a few seconds.' });
-    }
-
-    console.log(`2. youtubei.js successfully initialized, fetching playlist...`);
-
-    // Fetch playlist
-    const playlist = await innertubeClient.getPlaylist(playlistId);
-
-    if (!playlist || !playlist.items || playlist.items.length === 0) {
-      console.log(`3. Playlist fetch failed: Not found or empty`);
-      return res.status(404).json({ success: false, error: 'Playlist not found or empty' });
-    }
-
-    console.log(`3. Playlist loaded successfully. Title: "${playlist.info?.title}"`);
-    console.log(`4. Total number of items returned by youtubei.js: ${playlist.items.length}`);
-
-    if (playlist.items.length > 0) {
-      console.log(`5. The constructor/type of the first 3 playlist items:`);
-      for (let i = 0; i < Math.min(3, playlist.items.length); i++) {
-        console.log(`   Item ${i}: type='${playlist.items[i].type}', constructor='${playlist.items[i].constructor.name}'`);
-      }
-      console.log(`6. Complete raw object of the first playlist item:`);
-      console.log(JSON.stringify(playlist.items[0], null, 2).substring(0, 500) + '... (truncated for brevity)');
-    }
-
-    let allItems = [...playlist.items];
-    let currentFeed = playlist;
-    let continuation = currentFeed.has_continuation;
-
-    // Fetch continuations for large playlists (up to 1000 items to prevent timeouts)
-    let pageCount = 0;
-    while (continuation && pageCount < 10) {
-      pageCount++;
-      try {
-        const nextData = await currentFeed.getContinuation();
-        if (nextData && nextData.items && nextData.items.length > 0) {
-          allItems = [...allItems, ...nextData.items];
-          continuation = nextData.has_continuation;
-          currentFeed = nextData;
-        } else {
-          continuation = false;
-        }
-      } catch (err) {
-        console.warn('[YouTube] Continuation error:', err.message);
-        break; // Stop paginating on error, return what we have
-      }
-    }
-
-    // Map to AudioNova Song format
-    const tracks = allItems.map(item => {
-      // Handle standard videos, playlist items, and music playlist items
-      if (item.type !== 'Video' && item.type !== 'PlaylistItem' && item.type !== 'LockupView' && item.type !== 'PlaylistVideo') return null;
-
-      let videoId = item.id || item.content_id || item.videoId;
-      if (!videoId) return null;
-
-      let title = item.title?.text || item.title || item.metadata?.title?.text || 'Unknown Video';
-      let author = item.author?.name || item.metadata?.primary_text?.text || 'Unknown Channel';
-
-      let durationSeconds = 0;
-      if (item.duration?.seconds) {
-        durationSeconds = item.duration.seconds;
-      } else {
-        let durationStr = item.metadata?.secondary_text?.text;
-
-        // Search through thumbnail badges for duration (e.g. "5:00") in YouTube Music LockupViews
-        if (!durationStr && item.content_image?.overlays) {
-          for (const overlay of item.content_image.overlays) {
-            if (overlay.badges) {
-              for (const badge of overlay.badges) {
-                if (badge.text && /^\d+(:\d+)+$/.test(badge.text)) {
-                  durationStr = badge.text;
-                  break;
-                }
-              }
-            }
-            if (durationStr) break;
-          }
-        }
-
-        if (durationStr) {
-          const parts = durationStr.split(':').reverse();
-          durationSeconds = parts.reduce((acc, val, idx) => acc + parseInt(val || '0', 10) * Math.pow(60, idx), 0);
-        }
-      }
-
-      // If we still don't have duration, default to 180 (3 mins) instead of throwing away the song
-      // This is a much safer fallback than returning null for a valid song
-      if (durationSeconds === 0) durationSeconds = 180;
-
-      const rawThumbnails = item.thumbnails || item.content_image?.image || [];
-      const image = rawThumbnails.length > 0 ? rawThumbnails.map(t => ({
-        quality: `${t.width}x${t.height}`,
-        link: t.url
-      })) : [];
-
-      return {
-        id: `yt:${videoId}`,
-        name: title,
-        primaryArtists: author,
-        album: playlist.info?.title || 'YouTube Playlist',
-        duration: durationSeconds,
-        image: image,
-        url: `https://youtube.com/watch?v=${videoId}`,
-        downloadUrl: [], // Intentionally empty, resolved JIT
-        explicitContent: false,
-        language: 'YouTube',
-        hasLyrics: false,
-        playCount: 0,
-        year: new Date().getFullYear().toString(),
-      };
-    });
-
-    console.log(`7. Number of mapped Song objects BEFORE filtering: ${tracks.length}`);
-    let filteredTracks = tracks.filter(Boolean);
-
-    // Deduplicate tracks by video ID (YouTube playlists can contain the same video multiple times)
-    const uniqueIds = new Set();
-    filteredTracks = filteredTracks.filter(track => {
-      if (uniqueIds.has(track.id)) return false;
-      uniqueIds.add(track.id);
-      return true;
-    });
-
-    console.log(`8. Number of Song objects AFTER filtering and deduplication: ${filteredTracks.length}`);
-
-    const finalResponse = {
-      success: true,
-      playlist: {
-        id: playlistId,
-        name: playlist.info?.title || 'YouTube Playlist',
-        description: playlist.info?.description || '',
-        tracks: filteredTracks,
-        image: playlist.info?.thumbnails?.[0]?.url || filteredTracks[0]?.image?.[0]?.link || null
-      }
-    };
-
-    console.log(`9. Final JSON response (tracks array length: ${finalResponse.playlist.tracks.length})`);
-
-    res.json(finalResponse);
-  } catch (error) {
-    console.error('Error importing YouTube playlist:', error.message);
-    res.status(500).json({
-      success: false,
-      error: `Failed to import YouTube playlist: ${error.message}`
-    });
-  }
-});
 
 // API endpoint to stream YouTube audio JIT (Backend Proxy)
 app.get('/api/stream/youtube/:videoId', async (req, res) => {
@@ -987,23 +823,6 @@ app.get('/api/stream/youtube/:videoId', async (req, res) => {
     const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
     const options = ytdlAgent ? { agent: ytdlAgent } : {};
     const info = await ytdl.getInfo(videoUrl, options);
-    console.log("================================");
-    console.log("Video Title:", info.videoDetails?.title);
-    console.log("Formats Count:", info.formats?.length);
-
-    if (info.formats?.length) {
-      console.log(
-        info.formats.map(f => ({
-          itag: f.itag,
-          mime: f.mimeType,
-          hasAudio: f.hasAudio,
-          hasVideo: f.hasVideo,
-          audioCodec: f.audioCodec,
-          isHLS: f.isHLS,
-          isDashMPD: f.isDashMPD
-        }))
-      );
-    }
     const format = ytdl.chooseFormat(info.formats, { quality: 'highestaudio' });
 
     if (!format || !format.url) {
