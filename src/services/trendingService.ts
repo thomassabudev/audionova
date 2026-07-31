@@ -14,6 +14,7 @@ import {
   type TrendingConfig,
 } from '@/utils/trending';
 import { isLikelyWrongImage, normalizeSongImage } from '@/utils/songImage';
+import { metadataResolver } from './metadataResolver';
 
 const CACHE_KEY = 'trending_songs_v2';
 const HISTORY_KEY = 'trending_history_v2';
@@ -58,7 +59,8 @@ class TrendingService {
 
     // Return cached data if valid and not forcing refresh
     if (!forceRefresh && this.cache && this.isCacheValid()) {
-      let songs = this.cache.songs;
+      // Synchronously apply any verified data that completed in the background
+      let songs = metadataResolver.verifyHomePageMetadata(this.cache.songs);
       
       // Filter by languages if specified
       if (languages && languages.length > 0) {
@@ -146,30 +148,11 @@ class TrendingService {
       const balancedTa = shuffleTa.slice(0, songsPerLanguage);
       const balancedHi = shuffleHi.slice(0, songsPerLanguage);
 
-      // Combine balanced selections and deduplicate by ID AND name
+      // Combine balanced selections and deduplicate
       const combined = [...balancedMal, ...balancedTa, ...balancedHi];
 
-      // Enhanced deduplication - by ID and similar names
-      const uniqueMap = new Map<string, any>();
-      const seenNames = new Set<string>();
-      
-      for (const song of combined) {
-        // Skip if we've seen this ID
-        if (uniqueMap.has(song.id)) continue;
-        
-        // Normalize name for comparison (lowercase, remove special chars)
-        const normalizedName = song.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-        
-        // Skip if we've seen a very similar name
-        if (seenNames.has(normalizedName)) {
-          continue;
-        }
-        
-        uniqueMap.set(song.id, song);
-        seenNames.add(normalizedName);
-      }
-
-      let unique = Array.from(uniqueMap.values());
+      // Enhanced deduplication - using metadataResolver
+      let unique = metadataResolver.resolveDuplicates(combined);
 
       // Enhanced filtering: Cover art + Recency + Quality
       const currentYear = new Date().getFullYear();
@@ -221,7 +204,7 @@ class TrendingService {
         }
 
         // 4. Quality check - Ensure minimum play count if available
-        const playCount = parseInt(song.playCount) || 0;
+        const playCount = typeof song.playCount === 'string' ? parseInt(song.playCount, 10) : (song.playCount || 0);
         if (playCount > 0 && playCount < 1000) {
           return false;
         }
@@ -303,6 +286,9 @@ class TrendingService {
         version: '1.0',
       };
       this.saveToLocalStorage();
+
+      // Trigger progressive metadata verification for home page
+      metadataResolver.verifyHomePageMetadata(withDeltas);
 
       // Filter by languages if specified
       let result = withDeltas;

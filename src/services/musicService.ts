@@ -1,7 +1,7 @@
 import { jiosaavnApi } from './jiosaavnApi';
 import type { Song } from './jiosaavnApi';
 import { gaanaApi } from './gaanaApi';
-
+import { metadataResolver } from './metadataResolver';
 export interface UnifiedSong extends Song {
   source: 'jiosaavn' | 'gaana';
 }
@@ -20,7 +20,9 @@ class MusicService {
       const enhancedSongs = await this.enhanceSearchResultsImages(jiosaavnSongs.slice(0, 10));
       const remainingSongs = jiosaavnSongs.slice(10);
       
-      const allSongs = [...enhancedSongs, ...remainingSongs];
+      let allSongs = [...enhancedSongs, ...remainingSongs];
+      allSongs = metadataResolver.rankSearchResults(query, allSongs);
+      
       const unifiedJioSaavnSongs: UnifiedSong[] = allSongs.map(song => ({
         ...song,
         source: 'jiosaavn'
@@ -101,7 +103,10 @@ class MusicService {
         // Removed verbose logging for cleaner console
       });
       
-      const unifiedJioSaavnSongs: UnifiedSong[] = jiosaavnTrending.map(song => ({
+      let uniqueSongs = metadataResolver.resolveDuplicates(jiosaavnTrending);
+      uniqueSongs = metadataResolver.verifyHomePageMetadata(uniqueSongs);
+
+      const unifiedJioSaavnSongs: UnifiedSong[] = uniqueSongs.map(song => ({
         ...song,
         source: 'jiosaavn'
       }));
@@ -135,7 +140,10 @@ class MusicService {
         // Removed verbose logging for cleaner console
       });
       
-      const unifiedJioSaavnSongs: UnifiedSong[] = jiosaavnRomance.map(song => ({
+      let uniqueSongs = metadataResolver.resolveDuplicates(jiosaavnRomance);
+      uniqueSongs = metadataResolver.verifyHomePageMetadata(uniqueSongs);
+
+      const unifiedJioSaavnSongs: UnifiedSong[] = uniqueSongs.map(song => ({
         ...song,
         source: 'jiosaavn'
       }));
@@ -165,7 +173,10 @@ class MusicService {
       const jiosaavnRomance = await jiosaavnApi.getTamilRomanceSongs();
       // Removed verbose logging for cleaner console
       
-      const unifiedJioSaavnSongs: UnifiedSong[] = jiosaavnRomance.map(song => ({
+      let uniqueSongs = metadataResolver.resolveDuplicates(jiosaavnRomance);
+      uniqueSongs = metadataResolver.verifyHomePageMetadata(uniqueSongs);
+
+      const unifiedJioSaavnSongs: UnifiedSong[] = uniqueSongs.map(song => ({
         ...song,
         source: 'jiosaavn'
       }));
@@ -193,7 +204,10 @@ class MusicService {
       const jiosaavnRomance = await jiosaavnApi.getHindiRomanceSongs();
       // Removed verbose logging for cleaner console
       
-      const unifiedJioSaavnSongs: UnifiedSong[] = jiosaavnRomance.map(song => ({
+      let uniqueSongs = metadataResolver.resolveDuplicates(jiosaavnRomance);
+      uniqueSongs = metadataResolver.verifyHomePageMetadata(uniqueSongs);
+
+      const unifiedJioSaavnSongs: UnifiedSong[] = uniqueSongs.map(song => ({
         ...song,
         source: 'jiosaavn'
       }));
@@ -221,7 +235,10 @@ class MusicService {
       const jiosaavnTrending = await jiosaavnApi.getHindiTrendingSongs();
       // Removed verbose logging for cleaner console
       
-      const unifiedJioSaavnSongs: UnifiedSong[] = jiosaavnTrending.map(song => ({
+      let uniqueSongs = metadataResolver.resolveDuplicates(jiosaavnTrending);
+      uniqueSongs = metadataResolver.verifyHomePageMetadata(uniqueSongs);
+
+      const unifiedJioSaavnSongs: UnifiedSong[] = uniqueSongs.map(song => ({
         ...song,
         source: 'jiosaavn'
       }));
@@ -379,8 +396,11 @@ class MusicService {
         source: 'jiosaavn'
       }));
       
+      let finalSongs = metadataResolver.resolveDuplicates(unifiedSongs);
+      finalSongs = metadataResolver.verifyHomePageMetadata(finalSongs);
+      
       // Removed verbose logging for cleaner console
-      return unifiedSongs.slice(0, limit);
+      return finalSongs.slice(0, limit);
     } catch (error) {
       console.error('Error fetching new releases from JioSaavn:', error);
       // Return sample data only as last resort

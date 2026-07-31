@@ -157,7 +157,15 @@ async function getSongById(songId) {
   });
 
   const raw     = response.data;
-  const songRaw = raw[songId] || Object.values(raw)[0];
+  let songRaw = raw[songId] || Object.values(raw)[0];
+  
+  // Handle JioSaavn's nested array response for getDetails
+  if (raw.songs && Array.isArray(raw.songs)) {
+    songRaw = raw.songs[0];
+  } else if (Array.isArray(songRaw)) {
+    songRaw = songRaw[0];
+  }
+
   if (!songRaw) return null;
 
   const result = normalizeSong(songRaw);
