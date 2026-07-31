@@ -45,6 +45,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { useMusic } from '@/context/MusicContext';
+import { useAudioTime } from '@/hooks/useAudioTime';
 import PlayingEqualizerBadge from './PlayingEqualizerBadge';
 // Import the JioSaavn Song type with an alias to avoid conflicts
 import type { Song as JioSaavnSong } from '@/services/jiosaavnApi';
@@ -336,8 +337,6 @@ const EnhancedFullscreenPlaylistView: React.FC<EnhancedFullscreenPlaylistViewPro
   const { 
     currentSong, 
     isPlaying, 
-    currentTime, 
-    duration, 
     volume,
     isSongLiked,
     playSong, 
@@ -359,6 +358,8 @@ const EnhancedFullscreenPlaylistView: React.FC<EnhancedFullscreenPlaylistViewPro
     savePlaylist
   } = useMusic();
   
+  const { currentTime, duration } = useAudioTime(audioRef);
+
   // Initialize playlist with version if not present
   const playlistWithVersion = {
     ...initialPlaylist,

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Play, Pause, SkipBack, SkipForward, Volume2, Music2, ListMusic, Sliders, Moon, Share2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { useMusic } from '../context/MusicContext';
+import { useAudioTime } from '../hooks/useAudioTime';
 import { getHighestQualityImage } from '../services/jiosaavnApi';
 import AudioVisualizer from './AudioVisualizer';
 import LyricsViewer from './LyricsViewer';
@@ -36,14 +37,15 @@ const ExpandedSongPlayer: React.FC<ExpandedSongPlayerProps> = ({ isOpen, onClose
     togglePlayPause,
     playPrevious,
     playNext,
-    currentTime,
-    duration,
     seekTo,
     volume,
+    audioRef,
     setVolume,
     sleepTimerOption,
     sleepTimerRemaining,
   } = useMusic();
+
+  const { currentTime, duration } = useAudioTime(audioRef);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);

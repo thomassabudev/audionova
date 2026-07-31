@@ -66,8 +66,6 @@ interface MusicContextType {
   savedPlaylists: Playlist[];
   volume: number;
   setVolume: (volume: number) => void;
-  currentTime: number;
-  duration: number;
   seekTo: (time: number) => void;
   audioRef: React.RefObject<HTMLAudioElement>;
   // Audio quality and processing
@@ -113,8 +111,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   });
   const [volume, setVolume] = useState(1);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
   const [error, setError] = useState<string | null>(null);
   
   // Audio processing state
@@ -266,36 +262,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Audio element setup & event listeners
   useEffect(() => {
-    const handleTimeUpdate = (e: Event) => {
-      const activeAudio = (e.target as HTMLAudioElement) || audioRef.current;
-      if (activeAudio && activeAudio.currentTime !== undefined && !isNaN(activeAudio.currentTime)) {
-        setCurrentTime(activeAudio.currentTime);
-      }
-    };
-
-    const handleLoadedMetadata = (e: Event) => {
-      const activeAudio = (e.target as HTMLAudioElement) || audioRef.current;
-      if (activeAudio) {
-        const newDuration = (activeAudio.duration && !isNaN(activeAudio.duration) && isFinite(activeAudio.duration) && activeAudio.duration > 0)
-          ? activeAudio.duration
-          : 0;
-        if (newDuration > 0) {
-          setDuration(newDuration);
-        }
-      }
-      setCurrentTime(0);
-    };
-
-    const handleDurationChange = (e: Event) => {
-      const activeAudio = (e.target as HTMLAudioElement) || audioRef.current;
-      if (activeAudio && activeAudio.duration && !isNaN(activeAudio.duration) && isFinite(activeAudio.duration) && activeAudio.duration > 0) {
-        setDuration(activeAudio.duration);
-      }
-    };
-
     const handleEnded = () => {
-      setCurrentTime(0);
-
       if (repeatModeRef.current === 'one') {
         if (audioRef.current) {
           audioRef.current.currentTime = 0;
@@ -322,7 +289,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
 
     const handleLoadStart = () => {
-      setCurrentTime(0);
     };
 
     const handleLoadedData = () => {
@@ -364,9 +330,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const attachListeners = (audioEl: HTMLAudioElement | null) => {
       if (!audioEl) return;
-      audioEl.removeEventListener('timeupdate', handleTimeUpdate);
-      audioEl.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      audioEl.removeEventListener('durationchange', handleDurationChange);
       audioEl.removeEventListener('ended', handleEnded);
       audioEl.removeEventListener('play', handlePlay);
       audioEl.removeEventListener('pause', handlePause);
@@ -376,9 +339,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       audioEl.removeEventListener('waiting', handleWaiting);
       audioEl.removeEventListener('error', handleError);
 
-      audioEl.addEventListener('timeupdate', handleTimeUpdate);
-      audioEl.addEventListener('loadedmetadata', handleLoadedMetadata);
-      audioEl.addEventListener('durationchange', handleDurationChange);
       audioEl.addEventListener('ended', handleEnded);
       audioEl.addEventListener('play', handlePlay);
       audioEl.addEventListener('pause', handlePause);
@@ -401,9 +361,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
       const audioEl = audioRef.current;
       if (audioEl) {
-        audioEl.removeEventListener('timeupdate', handleTimeUpdate);
-        audioEl.removeEventListener('loadedmetadata', handleLoadedMetadata);
-        audioEl.removeEventListener('durationchange', handleDurationChange);
         audioEl.removeEventListener('ended', handleEnded);
         audioEl.removeEventListener('play', handlePlay);
         audioEl.removeEventListener('pause', handlePause);
@@ -420,9 +377,17 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     const audio = audioRef.current;
     if (audio) {
-      audio.volume = volume;
+      if (audioProcessingEnabled && audioProcessor) {
+        // When Web Audio API is active, control volume via GainNode
+        // to prevent inconsistent cross-browser duplicate attenuation
+        audioProcessor.setGain(volume);
+        audio.volume = 1;
+      } else {
+        // Fallback to standard HTML5 audio volume
+        audio.volume = volume;
+      }
     }
-  }, [volume]);
+  }, [volume, audioProcessingEnabled, audioProcessor]);
 
   // Liked songs methods
   const isSongLiked = (songId: string) => {
@@ -662,10 +627,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // Set current song and audio info (with enhanced images)
     setCurrentSong(song);
     setCurrentAudioInfo(audioSourceInfo);
-    
-    // Initialize duration immediately from song metadata
-    const initialDur = Number(song.duration) || 0;
-    setDuration(initialDur);
     
     // Track the play for analytics
     // Removed verbose logging for cleaner console
@@ -1046,10 +1007,9 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const seekTo = (time: number) => {
-    if (audioRef.current && !isNaN(time) && time >= 0) {
+    if (audioRef.current) {
       try {
         audioRef.current.currentTime = time;
-        setCurrentTime(time);
       } catch (error) {
         console.error('[Player] Error seeking:', error);
       }
@@ -1150,8 +1110,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         savedPlaylists,
         volume,
         setVolume,
-        currentTime,
-        duration,
         seekTo,
         audioRef: audioRef as React.RefObject<HTMLAudioElement>,
         // Audio quality and processing

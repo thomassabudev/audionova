@@ -36,7 +36,6 @@ export class AudioProcessor {
     midPeaking: BiquadFilterNode | null;
     highShelf: BiquadFilterNode | null;
   } = { lowShelf: null, midPeaking: null, highShelf: null };
-  private compressorNode: DynamicsCompressorNode | null = null;
   private limiterNode: DynamicsCompressorNode | null = null;
   private analyserNode: AnalyserNode | null = null;
   private isInitialized = false;
@@ -49,13 +48,13 @@ export class AudioProcessor {
       enableNormalization: false, // Disabled by default - can cause issues
       eqSettings: {
         lowGain: 0,    // Neutral by default
-        midGain: 1,    // Slight mid boost for clarity
-        highGain: 0.5  // Gentle high boost for presence
+        midGain: 0,    // Neutral by default (removed +1dB coloration)
+        highGain: 0    // Neutral by default (removed +0.5dB coloration)
       },
       limiterSettings: {
-        threshold: -1,   // Conservative threshold
-        ratio: 4,        // Moderate compression
-        attack: 0.003,   // Fast attack
+        threshold: -0.1, // Safety threshold just below 0dBFS
+        ratio: 20,       // Brick-wall ratio
+        attack: 0.003,   // Fast attack to catch peaks
         release: 0.1     // Medium release
       },
       normalizationTarget: -20, // Conservative target
@@ -95,8 +94,7 @@ export class AudioProcessor {
       }
 
       if (this.config.enableLimiter) {
-        this.compressorNode = this.audioContext.createDynamicsCompressor();
-        this.limiterNode    = this.audioContext.createDynamicsCompressor();
+        this.limiterNode = this.audioContext.createDynamicsCompressor();
         this.setupDynamicsProcessing();
       }
 
@@ -138,19 +136,12 @@ export class AudioProcessor {
    * Configure dynamics processing (compression + limiting)
    */
   private setupDynamicsProcessing(): void {
-    if (!this.compressorNode || !this.limiterNode) return;
+    if (!this.limiterNode) return;
 
-    // Gentle compressor for dynamics control
-    this.compressorNode.threshold.value = -18; // Conservative threshold
-    this.compressorNode.knee.value = 6;        // Soft knee
-    this.compressorNode.ratio.value = 3;       // Gentle ratio
-    this.compressorNode.attack.value = 0.01;   // 10ms attack
-    this.compressorNode.release.value = 0.25;  // 250ms release
-
-    // Brick-wall limiter for peak protection
+    // Brick-wall limiter for peak protection ONLY (engages only if EQ is boosted > 0dB)
     this.limiterNode.threshold.value = this.config.limiterSettings.threshold;
     this.limiterNode.knee.value = 0;           // Hard knee for limiting
-    this.limiterNode.ratio.value = 20;         // High ratio for limiting
+    this.limiterNode.ratio.value = this.config.limiterSettings.ratio; // Use config ratio (20)
     this.limiterNode.attack.value = this.config.limiterSettings.attack;
     this.limiterNode.release.value = this.config.limiterSettings.release;
   }
@@ -171,10 +162,9 @@ export class AudioProcessor {
       currentNode = this.eqNodes.highShelf;
     }
 
-    // Connect dynamics processing
-    if (this.config.enableLimiter && this.compressorNode && this.limiterNode) {
-      currentNode.connect(this.compressorNode);
-      this.compressorNode.connect(this.limiterNode);
+    // Connect dynamics processing (limiter only)
+    if (this.config.enableLimiter && this.limiterNode) {
+      currentNode.connect(this.limiterNode);
       currentNode = this.limiterNode;
     }
 
@@ -298,10 +288,6 @@ export class AudioProcessor {
       }
     });
     this.eqNodes = { lowShelf: null, midPeaking: null, highShelf: null };
-    if (this.compressorNode) {
-      try { this.compressorNode.disconnect(); } catch { /* ignore */ }
-      this.compressorNode = null;
-    }
     if (this.limiterNode) {
       try { this.limiterNode.disconnect(); } catch { /* ignore */ }
       this.limiterNode = null;

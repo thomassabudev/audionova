@@ -1,6 +1,7 @@
 // src/components/GlobalKeyboardShortcuts.tsx
 import React, { useEffect, useState } from 'react';
 import { useMusic } from '../context/MusicContext';
+import { useAudioTime } from '../hooks/useAudioTime';
 import KeyboardShortcutsModal from './KeyboardShortcutsModal';
 
 interface GlobalKeyboardShortcutsProps {
@@ -12,12 +13,13 @@ const GlobalKeyboardShortcuts: React.FC<GlobalKeyboardShortcutsProps> = ({ onTog
     currentSong,
     isPlaying,
     togglePlayPause,
-    currentTime,
-    duration,
     seekTo,
     volume,
     setVolume,
+    audioRef,
   } = useMusic();
+
+  const { currentTime, duration } = useAudioTime(audioRef);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
 

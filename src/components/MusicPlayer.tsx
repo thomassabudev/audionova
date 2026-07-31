@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '../lib/utils';
 import { useMusic } from '../context/MusicContext';
+import { useAudioTime } from '../hooks/useAudioTime';
 import { useSettings } from '../context/SettingsContext';
 import { usePlaylistSidebar } from '../context/PlaylistSidebarContext';
 import { useDynamicTheme, useThemeCSS, useAnimatedGradient } from '../hooks/useDynamicTheme';
@@ -29,8 +30,6 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ onToggleSidebar, onOpenExpand
   const {
     currentSong,
     isPlaying,
-    currentTime,
-    duration,
     volume,
     isShuffle,
     repeatMode,
@@ -42,9 +41,12 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ onToggleSidebar, onOpenExpand
     setIsShuffle,
     setRepeatMode,
     seekTo,
+    audioRef,
     sleepTimerOption,
     sleepTimerRemaining,
   } = useMusic();
+
+  const { currentTime, duration } = useAudioTime(audioRef);
   const { isPlaylistSidebarOpen } = usePlaylistSidebar();
   const { isLightTheme } = useThemeDetection();
 

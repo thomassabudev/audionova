@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Pause, SkipBack, SkipForward, Volume2 } from 'lucide-react';
 import { useMusic } from '../context/MusicContext';
+import { useAudioTime } from '../hooks/useAudioTime';
 import { selectMusicPlayerImage } from '../utils/imageQualitySelector';
 import { useDynamicTheme, useThemeCSS, useAnimatedGradient } from '../hooks/useDynamicTheme';
 import { useThemeDetection } from '../hooks/useThemeDetection';
@@ -10,15 +11,16 @@ const NowPlayingSection: React.FC = () => {
   const {
     currentSong,
     isPlaying,
-    currentTime,
-    duration,
     volume,
     togglePlayPause,
     playNext,
     playPrevious,
     seekTo,
     setVolume,
+    audioRef,
   } = useMusic();
+
+  const { currentTime, duration } = useAudioTime(audioRef);
 
   const { isLightTheme } = useThemeDetection();
 

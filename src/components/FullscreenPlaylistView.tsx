@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, X, Play, Pause, Clock, Search, Heart, MoreHorizontal, Shuffle, SkipBack, SkipForward, Minimize2, Maximize2, Music, Share2 } from 'lucide-react';
 import { useMusic } from '../context/MusicContext';
+import { useAudioTime } from '../hooks/useAudioTime';
 import type { Song } from '../services/jiosaavnApi';
 import { getHighestQualityImage } from '../services/jiosaavnApi';
 import SharePlaylistModal from './SharePlaylistModal';
@@ -26,7 +27,8 @@ const FullscreenPlaylistView: React.FC<FullscreenPlaylistViewProps> = ({
   playlist,
   onClose
 }) => {
-  const { playSong, setQueue, currentSong, isSongLiked, addToLikedSongs, removeFromLikedSongs, isPlaying, togglePlayPause, currentTime, duration, seekTo, setPlaylistAndPlay, playNext, playPrevious, toggleRepeat, repeatMode } = useMusic();
+  const { playSong, setQueue, currentSong, isSongLiked, addToLikedSongs, removeFromLikedSongs, isPlaying, togglePlayPause, seekTo, setPlaylistAndPlay, playNext, playPrevious, toggleRepeat, repeatMode, audioRef } = useMusic();
+  const { currentTime, duration } = useAudioTime(audioRef);
   const [searchQuery, setSearchQuery] = useState('');
   const [isAutoplayEnabled, setIsAutoplayEnabled] = useState(false);
   const [isMiniPlayerOpen, setIsMiniPlayerOpen] = useState(false);

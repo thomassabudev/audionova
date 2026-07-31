@@ -291,10 +291,17 @@ router.get('/stream', async (req, res) => {
     const rangeHeader = req.headers['range'];
     if (rangeHeader) upstreamHeaders['Range'] = rangeHeader;
 
+    const controller = new AbortController();
+    
+    // Abort the pending Axios request if the client disconnects before headers arrive
+    req.on('close', () => {
+      controller.abort();
+    });
+
     const upstream = await axios.get(decodedUrl, {
       headers:      upstreamHeaders,
       responseType: 'stream',
-      timeout:      30000,
+      signal:       controller.signal,
     });
 
     res.setHeader('Content-Type',  upstream.headers['content-type']  || 'audio/mp4');
@@ -305,11 +312,23 @@ router.get('/stream', async (req, res) => {
 
     res.status(upstream.status);
     upstream.data.pipe(res);
+
+    // Destroy the active stream if the client disconnects during playback
+    req.on('close', () => {
+      if (upstream.data && typeof upstream.data.destroy === 'function') {
+        upstream.data.destroy();
+      }
+    });
+
     upstream.data.on('error', (err) => {
       console.error('[JioSaavn Stream] Pipe error:', err.message);
       if (!res.headersSent) res.status(500).end();
     });
   } catch (err) {
+    if (axios.isCancel(err) || err.code === 'ERR_CANCELED') {
+      console.log('[JioSaavn Stream] Client aborted request for:', url);
+      return;
+    }
     console.error('[JioSaavn Stream] Error:', err.message);
     if (!res.headersSent) res.status(502).json({ error: 'Failed to stream audio' });
   }
