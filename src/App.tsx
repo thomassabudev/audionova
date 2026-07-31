@@ -29,6 +29,7 @@ import ArtistView from './views/ArtistView';
 import AlbumView from './views/AlbumView';
 import APITest from './components/APITest';
 import ErrorBoundary from './components/ErrorBoundary';
+import AppBootstrap from './components/AppBootstrap';
 import './App.css';
 
 // Audio element component that connects to MusicContext
@@ -105,10 +106,11 @@ function App() {
             <SettingsProvider>
               <QuickActionsProvider>
                 <PlaylistSidebarProvider>
-                  <ErrorBoundary>
-                    <Routes>
-                      {/* ── Full-screen routes (NO sidebar, NO music player) ── */}
-                      <Route path="/landing" element={<LandingPage />} />
+                  <AppBootstrap>
+                    <ErrorBoundary>
+                      <Routes>
+                        {/* ── Full-screen routes (NO sidebar, NO music player) ── */}
+                        <Route path="/landing" element={<LandingPage />} />
                       <Route path="/signin" element={
                         <RedirectAuthenticated><Signin /></RedirectAuthenticated>
                       } />
@@ -184,6 +186,7 @@ function App() {
                       } />
                     </Routes>
                   </ErrorBoundary>
+                  </AppBootstrap>
                 </PlaylistSidebarProvider>
               </QuickActionsProvider>
             </SettingsProvider>
@@ -200,9 +203,7 @@ const RootRoute: React.FC = () => {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return <div className="flex items-center justify-center min-h-screen bg-black">
-      <div className="w-8 h-8 rounded-full border-2 border-red-500 border-t-transparent animate-spin" />
-    </div>;
+    return null;
   }
 
   // Logged-in users go to HomeView, guests redirect to /landing (no sidebar)
@@ -218,7 +219,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   const { user, loading } = useAuth();
 
   if (loading) {
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+    return null;
   }
 
   if (!user) {
@@ -233,7 +234,7 @@ const RedirectAuthenticated: React.FC<{ children: React.ReactNode }> = ({ childr
   const { user, loading } = useAuth();
 
   if (loading) {
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+    return null;
   }
 
   if (user) {

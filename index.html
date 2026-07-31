@@ -5,6 +5,12 @@
   <meta charset="UTF-8" />
   <link rel="icon" type="image/jpeg" href="/logo.jpg" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/splash.css" />
+  <script>
+    if (localStorage.getItem('audioNova.loaderSeen')) {
+      document.documentElement.classList.add('splash-returning');
+    }
+  </script>
   <title>AudioNova</title>
   <meta name="description"
     content="Discover trending songs, playlists, and enjoy seamless music streaming with AudioNova." />
@@ -147,6 +153,45 @@
 </head>
 
 <body>
+  <div id="splash-screen">
+    <div class="splash-bg-glow"></div>
+    <div class="splash-particles">
+      <div class="splash-particle"></div>
+      <div class="splash-particle"></div>
+      <div class="splash-particle"></div>
+      <div class="splash-particle"></div>
+      <div class="splash-particle"></div>
+      <div class="splash-particle"></div>
+    </div>
+    <div class="splash-logo-container">
+      <div class="splash-logo-glow"></div>
+      <div class="splash-logo">
+        <img src="/logo.jpg" alt="AudioNova" />
+        <span>AudioNova</span>
+      </div>
+    </div>
+    <div class="splash-eq">
+      <div class="splash-eq-bar"></div>
+      <div class="splash-eq-bar"></div>
+      <div class="splash-eq-bar"></div>
+      <div class="splash-eq-bar"></div>
+      <div class="splash-eq-bar"></div>
+      <div class="splash-eq-bar"></div>
+      <div class="splash-eq-bar"></div>
+      <div class="splash-eq-bar"></div>
+      <div class="splash-eq-bar"></div>
+      <div class="splash-eq-bar"></div>
+      <div class="splash-eq-bar"></div>
+      <div class="splash-eq-bar"></div>
+    </div>
+    <div class="splash-text-container">
+      <div class="splash-text">Loading your soundtrack...</div>
+      <div class="splash-text">Curating your experience...</div>
+      <div class="splash-text">Preparing your library...</div>
+      <div class="splash-text">Syncing your playlists...</div>
+      <div class="splash-text">Almost ready...</div>
+    </div>
+  </div>
   <div id="root"></div>
   <script type="module" src="/src/main.tsx"></script>
 </body>
