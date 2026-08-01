@@ -205,16 +205,14 @@ async function getSpotifyPlaylistTracks(playlistId, accessToken) {
     let totalTracks = 0;
 
     // First request to get playlist metadata and total track count
-    const initialResponse = await axios.get(`https://api.spotify.com/v1/playlists/${playlistId}`, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`
-      },
-      params: {
-        fields: 'id,name,description,images,tracks.items(track(id,name,duration_ms,explicit,external_urls,album(name,release_date,label,external_urls,images,copyrights),artists(name,id))),tracks.total,public,owner.display_name',
-        limit: limit,
-        offset: offset
+    const initialResponse = await axios.get(
+      `https://api.spotify.com/v1/playlists/${playlistId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
       }
-    });
+    );
 
     const playlistData = initialResponse.data;
     console.log("================================");
@@ -247,16 +245,18 @@ async function getSpotifyPlaylistTracks(playlistId, accessToken) {
       offset = i * limit;
 
       try {
-        const response = await axios.get(`https://api.spotify.com/v1/playlists/${playlistId}/tracks`, {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`
-          },
-          params: {
-            fields: 'items(track(id,name,duration_ms,explicit,external_urls,album(name,release_date,label,external_urls,images,copyrights),artists(name,id)))',
-            limit: limit,
-            offset: offset
+        const response = await axios.get(
+          `https://api.spotify.com/v1/playlists/${playlistId}/tracks`,
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`
+            },
+            params: {
+              limit: limit,
+              offset: offset
+            }
           }
-        });
+        );
 
         // Add these tracks to our collection
         allTracks = [...allTracks, ...response.data.items];
