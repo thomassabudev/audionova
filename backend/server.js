@@ -212,7 +212,7 @@ async function getSpotifyPlaylistTracks(playlistId, accessToken) {
           Authorization: `Bearer ${accessToken}`
         },
         params: {
-          fields: 'id,name,description,images,tracks.items(track(id,name,duration_ms,explicit,external_urls,album(name,release_date,label,external_urls,images,copyrights),artists(name,id))),tracks.total,public,owner.display_name',
+          fields: 'id,name,tracks',
           limit: limit,
           offset: offset
         }
