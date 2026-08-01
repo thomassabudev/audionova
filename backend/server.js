@@ -220,11 +220,18 @@ async function getSpotifyPlaylistTracks(playlistId, accessToken) {
     console.log("================================");
     console.log("SPOTIFY PLAYLIST FETCH");
     console.log("Playlist:", playlistData.name);
-    console.log("Spotify Total Tracks:", playlistData.tracks.total);
-    console.log("First API Returned:", playlistData.tracks.items.length);
-    console.log("================================");
-    console.log(`Playlist found: ${playlistData.name} by ${playlistData.owner?.display_name}`);
-    console.log(`Playlist is public: ${playlistData.public}`);
+    // Temporary debug
+    console.log("========== RAW SPOTIFY RESPONSE ==========");
+    console.log(JSON.stringify(playlistData, null, 2));
+    console.log("==========================================");
+
+    console.log("Available Keys:", Object.keys(playlistData));
+    console.log("tracks =", playlistData.tracks);
+    console.log("tracks_v2 =", playlistData.tracks_v2);
+
+    // COMMENT THESE TEMPORARILY
+    // console.log("Spotify Total Tracks:", playlistData.tracks.total);
+    // console.log("First API Returned:", playlistData.tracks.items.length);
     totalTracks = playlistData.tracks.total;
 
     // Add the first batch of tracks
