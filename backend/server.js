@@ -217,6 +217,12 @@ async function getSpotifyPlaylistTracks(playlistId, accessToken) {
     });
 
     const playlistData = initialResponse.data;
+    console.log("================================");
+    console.log("SPOTIFY PLAYLIST FETCH");
+    console.log("Playlist:", playlistData.name);
+    console.log("Spotify Total Tracks:", playlistData.tracks.total);
+    console.log("First API Returned:", playlistData.tracks.items.length);
+    console.log("================================");
     console.log(`Playlist found: ${playlistData.name} by ${playlistData.owner?.display_name}`);
     console.log(`Playlist is public: ${playlistData.public}`);
     totalTracks = playlistData.tracks.total;
@@ -769,6 +775,12 @@ app.get('/api/import/spotify/:playlistId', apiLimiter, async (req, res) => {
     }
 
     const convertedTracks = playlistData.tracks.items.map(item => {
+      console.log("Converted Tracks:", convertedTracks.length);
+
+      let success = 0;
+      let failed = 0;
+
+      console.time("JioSaavn Matching");
       if (!item || !item.track) return null;
       return convertSpotifyToJioSaavn(item.track);
     }).filter(Boolean);
@@ -778,11 +790,29 @@ app.get('/api/import/spotify/:playlistId', apiLimiter, async (req, res) => {
       try {
         const searchQuery = `${track.name} ${track.primaryArtists.split(',')[0] || ''}`;
         const jioSaavnMatch = await searchSongOnJioSaavn(searchQuery);
+        const elapsed = Date.now() - start;
+
+        if (jioSaavnMatch) {
+          success++;
+          console.log(`✅ Match (${elapsed}ms)`);
+        } else {
+          failed++;
+          console.log(`❌ No Match (${elapsed}ms)`);
+        }
         enrichedTracks.push(jioSaavnMatch ? { ...jioSaavnMatch, spotifyUrl: track.url, album: track.album } : track);
       } catch {
         enrichedTracks.push(track);
       }
     }
+    console.timeEnd("JioSaavn Matching");
+
+    console.log("================================");
+    console.log("IMPORT SUMMARY");
+    console.log("Spotify Tracks:", convertedTracks.length);
+    console.log("Matched:", success);
+    console.log("Failed:", failed);
+    console.log("Final Tracks:", enrichedTracks.length);
+    console.log("================================");
 
     return res.json({
       success: true,
