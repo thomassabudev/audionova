@@ -769,6 +769,8 @@ app.get('/api/import/spotify/:playlistId', apiLimiter, async (req, res) => {
     // Try Spotify Web API first
     const accessToken = await getSpotifyAccessToken();
     const playlistData = await getSpotifyPlaylistTracks(playlistId, accessToken);
+    console.log("Using Official API");
+    console.log("Spotify returned:", playlistData.tracks.items.length, "tracks");
 
     if (!playlistData || !playlistData.tracks || !playlistData.tracks.items) {
       throw new Error('Invalid playlist data received from Spotify API');
@@ -828,6 +830,8 @@ app.get('/api/import/spotify/:playlistId', apiLimiter, async (req, res) => {
     console.warn(`Spotify Official API failed (${apiError.message}), using fallback Embed Scraper...`);
     try {
       const fallbackPlaylist = await getSpotifyEmbedPlaylistData(playlistId);
+      console.log("Using Embed Scraper");
+      console.log("Embed returned:", fallbackPlaylist.tracks.length, "tracks");
       return res.json({
         success: true,
         playlist: fallbackPlaylist
