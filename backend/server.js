@@ -210,9 +210,19 @@ async function getSpotifyPlaylistTracks(playlistId, accessToken) {
       {
         headers: {
           Authorization: `Bearer ${accessToken}`
+        },
+        params: {
+          fields: 'id,name,description,images,tracks.items(track(id,name,duration_ms,explicit,external_urls,album(name,release_date,label,external_urls,images,copyrights),artists(name,id))),tracks.total,public,owner.display_name',
+          limit: limit,
+          offset: offset
         }
       }
     );
+    console.log("STATUS:", initialResponse.status);
+    console.log("REQUEST URL:", initialResponse.config.url);
+    console.log("REQUEST PARAMS:", initialResponse.config.params);
+    console.log("HEADERS:", initialResponse.headers);
+    console.dir(initialResponse.data, { depth: null });
 
     const playlistData = initialResponse.data;
     console.log("================================");
@@ -230,6 +240,26 @@ async function getSpotifyPlaylistTracks(playlistId, accessToken) {
     // COMMENT THESE TEMPORARILY
     // console.log("Spotify Total Tracks:", playlistData.tracks.total);
     // console.log("First API Returned:", playlistData.tracks.items.length);
+
+    console.log("==================================================");
+    console.log("SPOTIFY DEBUG");
+    console.log("==================================================");
+    console.log("Request URL:", initialResponse.config.url);
+    console.log("HTTP Status:", initialResponse.status);
+    console.log("Request Params:", initialResponse.config.params);
+    console.log("Available Top Level Keys:", Object.keys(playlistData));
+    console.log("Whether playlistData.tracks exists:", !!playlistData.tracks);
+    if (playlistData.tracks) {
+      console.log("If tracks exists:");
+      console.log("    tracks.total:", playlistData.tracks.total);
+      console.log("    tracks.items.length:", playlistData.tracks.items ? playlistData.tracks.items.length : undefined);
+    }
+    console.log("==================================================");
+
+    if (!playlistData.tracks) {
+      console.dir(playlistData, { depth: null });
+    }
+
     totalTracks = playlistData.tracks.total;
 
     // Add the first batch of tracks
@@ -252,6 +282,7 @@ async function getSpotifyPlaylistTracks(playlistId, accessToken) {
               Authorization: `Bearer ${accessToken}`
             },
             params: {
+              fields: 'items(track(id,name,duration_ms,explicit,external_urls,album(name,release_date,label,external_urls,images,copyrights),artists(name,id)))',
               limit: limit,
               offset: offset
             }
