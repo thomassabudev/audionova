@@ -242,11 +242,41 @@ const YouTubeImportFlow: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
     if (!result) return;
     // Cast to any: MatchedSong.song shape is compatible with MusicContext Song at runtime
     const songs = result.matched.map(m => m.song as any);
+
+    // Extract up to 4 string URLs for the playlist cover collage
+    let coverImage: string | string[] = '';
+    const extractImage = (songImage: any) => {
+      if (Array.isArray(songImage)) {
+        const highRes = songImage.find((img: any) => img.quality === '500x500') || songImage[songImage.length - 1];
+        return highRes?.link || '';
+      } else if (typeof songImage === 'string') {
+        return songImage;
+      }
+      return '';
+    };
+
+    if (songs.length >= 4) {
+      const images = [
+        extractImage(songs[0]?.image),
+        extractImage(songs[1]?.image),
+        extractImage(songs[2]?.image),
+        extractImage(songs[3]?.image),
+      ].filter(Boolean);
+      
+      if (images.length === 4) {
+        coverImage = images;
+      } else if (images.length > 0) {
+        coverImage = images[0];
+      }
+    } else if (songs.length > 0) {
+      coverImage = extractImage(songs[0]?.image);
+    }
+
     savePlaylist({
       id:     `yt-${result.playlistId}-${Date.now()}`,
       name:   result.playlistName,
       tracks: songs,
-      image:  songs[0]?.image,
+      image:  coverImage,
     });
     toast.success(`"${result.playlistName}" saved — ${songs.length} songs`);
   }, [result, savePlaylist]);
@@ -446,6 +476,7 @@ const YouTubeImportFlow: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
         {/* Action Buttons */}
         <div className="flex gap-2">
           <Button
+            type="button"
             onClick={handlePlayResult}
             disabled={result.matchedCount === 0}
             className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs flex items-center justify-center gap-1"
@@ -453,6 +484,7 @@ const YouTubeImportFlow: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
             <Play className="w-3 h-3" /> Play Now
           </Button>
           <Button
+            type="button"
             onClick={handleSaveResult}
             disabled={result.matchedCount === 0}
             variant="secondary"
@@ -465,6 +497,7 @@ const YouTubeImportFlow: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
         {/* Retry Unmatched */}
         {result.unmatchedCount > 0 && (
           <Button
+            type="button"
             onClick={handleRetry}
             disabled={retryLoading}
             variant="outline"

@@ -145,12 +145,20 @@ const LibraryView: React.FC<LibraryViewProps> = ({ onOpenExpandedPlayer }) => {
 
                     // Safely resolve cover image from string, string[], or ImageOption[] 
                     const rawImg = playlist.image || (playlist.tracks && playlist.tracks[0]?.image);
-                    let coverSrc = '';
+                    let coverSrc: string | string[] = '';
                     if (typeof rawImg === 'string') {
                       coverSrc = rawImg;
                     } else if (Array.isArray(rawImg) && rawImg.length > 0) {
-                      const last = rawImg[rawImg.length - 1];
-                      coverSrc = typeof last === 'string' ? last : (last?.link || '');
+                      if (typeof rawImg[0] === 'string') {
+                         if (rawImg.length === 4) {
+                            coverSrc = rawImg as string[];
+                         } else {
+                            coverSrc = rawImg[0];
+                         }
+                      } else {
+                         const last = rawImg[rawImg.length - 1];
+                         coverSrc = typeof last === 'string' ? last : (last?.link || '');
+                      }
                     }
 
                     return (
@@ -166,7 +174,13 @@ const LibraryView: React.FC<LibraryViewProps> = ({ onOpenExpandedPlayer }) => {
                       >
                         {/* Playlist Cover */}
                         <div className="relative aspect-square w-full rounded-lg overflow-hidden bg-muted flex items-center justify-center shadow-md">
-                          {coverSrc ? (
+                          {Array.isArray(coverSrc) ? (
+                            <div className="w-full h-full grid grid-cols-2 group-hover:scale-105 transition-transform duration-300">
+                              {coverSrc.map((src, i) => (
+                                <img key={i} src={src} alt="cover part" className="w-full h-full object-cover" />
+                              ))}
+                            </div>
+                          ) : coverSrc ? (
                             <img 
                               src={coverSrc} 
                               alt={playlist.name || 'Playlist'} 

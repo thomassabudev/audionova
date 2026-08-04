@@ -837,7 +837,7 @@ const EnhancedFullscreenPlaylistView: React.FC<EnhancedFullscreenPlaylistViewPro
         <div 
           className="absolute inset-0 w-full h-full"
           style={{
-            backgroundImage: playlist.image ? `url(${playlist.image})` : 'linear-gradient(135deg, #7c3aed 0%, #2563eb 100%)',
+            backgroundImage: playlist.image ? `url(${Array.isArray(playlist.image) ? playlist.image[0] : playlist.image})` : 'linear-gradient(135deg, #7c3aed 0%, #2563eb 100%)',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             transform: `scale(1.1) translateY(${isHeaderShrunk ? '-20px' : '0'})`
@@ -862,9 +862,15 @@ const EnhancedFullscreenPlaylistView: React.FC<EnhancedFullscreenPlaylistViewPro
                 zIndex: isHeaderShrunk ? 10 : 'auto'
               }}
             >
-              {playlist.image ? (
+              {Array.isArray(playlist.image) && playlist.image.length === 4 ? (
+                <div className="w-48 h-48 rounded shadow-lg overflow-hidden grid grid-cols-2">
+                  {playlist.image.map((src, i) => (
+                    <img key={i} src={src} alt={`${playlist.name} part`} className="w-full h-full object-cover" crossOrigin="anonymous" />
+                  ))}
+                </div>
+              ) : playlist.image ? (
                 <img 
-                  src={playlist.image} 
+                  src={playlist.image as string} 
                   alt={playlist.name} 
                   className="w-48 h-48 rounded shadow-lg object-cover"
                   crossOrigin="anonymous"
