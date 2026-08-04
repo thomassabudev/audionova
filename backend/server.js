@@ -159,6 +159,12 @@ try {
   console.log('✅ Route loaded: /api/social');
 } catch (e) { console.error('❌ Failed to load social route:', e.message); }
 
+try {
+  const ytImportRouter = require('./routes/youtube-import');
+  app.use('/api/youtube-import', ytImportRouter);
+  console.log('✅ Route loaded: /api/youtube-import');
+} catch (e) { console.error('❌ Failed to load youtube-import route:', e.message); }
+
 // Function to get Spotify access token
 async function getSpotifyAccessToken() {
   // Check if Spotify credentials are configured
@@ -969,6 +975,8 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
+
+
 
 // Serve the React frontend for any unmatched routes (only if dist exists)
 const fs = require('fs');

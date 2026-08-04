@@ -14,6 +14,7 @@ import { Download, Youtube, Music4, Loader2, Save } from 'lucide-react';
 import { useMusic } from '../context/MusicContext';
 import { toast } from 'sonner';
 import { API_ENDPOINTS } from '../config/api';
+import YouTubeImportFlow from './YouTubeImportFlow';
 
 interface PlaylistImportDialogProps {
   children: React.ReactNode;
@@ -145,7 +146,7 @@ const PlaylistImportDialog: React.FC<PlaylistImportDialogProps> = ({ children })
             Import Playlist
           </DialogTitle>
           <DialogDescription>
-            Import songs from Spotify playlists
+            Import songs from Spotify or YouTube playlists
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={(e) => handleImport(e, false)} className="space-y-4">
@@ -164,19 +165,12 @@ const PlaylistImportDialog: React.FC<PlaylistImportDialogProps> = ({ children })
             />
           </div>
           
-          <div className="space-y-2 opacity-60">
-            <div className="flex items-center justify-between">
-              <Label className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-                <Youtube className="w-4 h-4 text-red-500/50" />
-                YouTube Playlist Import
-              </Label>
-              <span className="text-[10px] font-medium bg-red-500/10 text-red-500 px-2 py-0.5 rounded-full">
-                Coming Soon
-              </span>
-            </div>
-            <div className="p-3 bg-secondary/30 rounded-md border border-border/50 text-xs text-muted-foreground">
-              This feature is temporarily unavailable while we work on a more reliable implementation.
-            </div>
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2 text-xs font-semibold">
+              <Youtube className="w-4 h-4 text-red-500" />
+              YouTube Playlist Import
+            </Label>
+            <YouTubeImportFlow onClose={() => setOpen(false)} />
           </div>
           
           <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center sm:justify-end gap-2 pt-4">
