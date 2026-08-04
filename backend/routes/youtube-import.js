@@ -71,12 +71,12 @@ router.get('/callback', async (req, res) => {
 
   if (error) {
     console.error('[YT Import] Google OAuth error:', error);
-    return res.redirect(`${FRONTEND_URL}?yt_import_error=${encodeURIComponent(error)}`);
+    return res.redirect(`${FRONTEND_URL}/library?yt_import_error=${encodeURIComponent(error)}`);
   }
 
   if (!state || !_pendingStates.has(state)) {
     console.error('[YT Import] Invalid or expired state:', state);
-    return res.redirect(`${FRONTEND_URL}?yt_import_error=invalid_state`);
+    return res.redirect(`${FRONTEND_URL}/library?yt_import_error=invalid_state`);
   }
 
   const { importId, firebaseUid } = _pendingStates.get(state);
@@ -98,11 +98,11 @@ router.get('/callback', async (req, res) => {
 
     console.log(`[YT Import] OAuth success for uid: ${firebaseUid}, importId: ${importId}`);
 
-    // Redirect frontend to the import flow with the importId
-    return res.redirect(`${FRONTEND_URL}?yt_import_id=${importId}`);
+    // Redirect frontend to the Library page (where PlaylistImportDialog lives) with the importId
+    return res.redirect(`${FRONTEND_URL}/library?yt_import_id=${importId}`);
   } catch (err) {
     console.error('[YT Import] Token exchange failed:', err.message);
-    return res.redirect(`${FRONTEND_URL}?yt_import_error=token_exchange_failed`);
+    return res.redirect(`${FRONTEND_URL}/library?yt_import_error=token_exchange_failed`);
   }
 });
 
