@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -21,10 +21,22 @@ interface PlaylistImportDialogProps {
 }
 
 const PlaylistImportDialog: React.FC<PlaylistImportDialogProps> = ({ children }) => {
-  const [open, setOpen] = useState(false);
+  // Auto-open when returning from YouTube OAuth redirect
+  const [open, setOpen] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.has('yt_import_id') || params.has('yt_import_error');
+  });
   const [spotifyUrl, setSpotifyUrl] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const { setQueue, savePlaylist } = useMusic();
+
+  // Also handle case where component mounts after URL is set
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('yt_import_id') || params.has('yt_import_error')) {
+      setOpen(true);
+    }
+  }, []);
 
   const validateSpotifyUrl = (url: string) => {
     if (!url) return true; // Not required
