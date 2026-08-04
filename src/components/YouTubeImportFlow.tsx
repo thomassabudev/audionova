@@ -114,6 +114,7 @@ const YouTubeImportFlow: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
   const [showUnmatched, setShowUnmatched] = useState(true);
   const [selectingPl, setSelectingPl]     = useState<string | null>(null); // playlist id being selected
   const [retryLoading, setRetryLoading]   = useState(false);
+  const [playlistsLoading, setPlaylistsLoading] = useState(false);
 
   // ── Read importId from URL after OAuth callback ───────────────────────────
   useEffect(() => {
@@ -141,17 +142,44 @@ const YouTubeImportFlow: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
   useEffect(() => {
     if (flowState !== 'PLAYLIST_SELECT' || !importId) return;
 
+    let cancelled = false;
+    setPlaylistsLoading(true);
+
+    // 15-second timeout — if backend doesn't respond, show error
+    const timeout = setTimeout(() => {
+      if (!cancelled) {
+        cancelled = true;
+        setError('Playlist loading timed out. The server may be starting up — please try reconnecting.');
+        setFlowState('ERROR');
+      }
+    }, 15000);
+
     (async () => {
       try {
         const token = await getAuthToken();
-        if (!token) throw new Error('Not authenticated');
+        if (!token) throw new Error('Not authenticated. Please sign in to AudioNova first.');
         const pls = await ytService.getUserPlaylists(importId, token);
-        setPlaylists(pls);
+        if (!cancelled) {
+          clearTimeout(timeout);
+          setPlaylists(pls);
+          setPlaylistsLoading(false);
+          // If API returned empty list, show a helpful message instead of infinite spinner
+          if (pls.length === 0) {
+            setError('No playlists found on this YouTube account. Make sure you have public or saved playlists in YouTube.');
+            setFlowState('ERROR');
+          }
+        }
       } catch (err: any) {
-        setError(err.message || 'Failed to load playlists');
-        setFlowState('ERROR');
+        if (!cancelled) {
+          clearTimeout(timeout);
+          setPlaylistsLoading(false);
+          setError(err.message || 'Failed to load playlists. Please reconnect YouTube.');
+          setFlowState('ERROR');
+        }
       }
     })();
+
+    return () => { cancelled = true; clearTimeout(timeout); };
   }, [flowState, importId, getAuthToken]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
@@ -311,12 +339,13 @@ const YouTubeImportFlow: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
           <Youtube className="w-4 h-4 text-red-500" />
           <span className="text-xs font-semibold text-white">Choose a Playlist</span>
         </div>
-        {playlists.length === 0 ? (
-          <div className="flex items-center justify-center py-6">
+        {playlistsLoading ? (
+          <div className="flex flex-col items-center justify-center py-6 gap-2">
             <Loader2 className="w-5 h-5 animate-spin text-red-400" />
-            <span className="ml-2 text-xs text-white/60">Loading your playlists…</span>
+            <span className="text-xs text-white/60">Loading your playlists…</span>
+            <span className="text-[10px] text-white/30">This may take a moment if the server is starting up</span>
           </div>
-        ) : (
+        ) : playlists.length > 0 ? (
           <div className="space-y-2 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
             {playlists.map(pl => (
               <PlaylistCard
@@ -326,6 +355,10 @@ const YouTubeImportFlow: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
                 loading={selectingPl === pl.id}
               />
             ))}
+          </div>
+        ) : (
+          <div className="text-xs text-white/50 text-center py-4">
+            No playlists found on this YouTube account.
           </div>
         )}
         <Button variant="ghost" size="sm" onClick={handleReset} className="w-full text-xs text-white/40">
