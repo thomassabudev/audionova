@@ -74,6 +74,20 @@ function upgradeImageUrl(url) {
   return url.replace('150x150', '500x500').replace('50x50', '500x500');
 }
 
+// Decode HTML entities returned by JioSaavn's API.
+// JioSaavn sometimes returns raw HTML entities in title, album, artist fields.
+// e.g. 'Kootti Muttiya (From &quot;Pallichattambi&quot;)' -> 'Kootti Muttiya (From "Pallichattambi")'
+function decodeHTML(str) {
+  if (!str || typeof str !== 'string') return str || '';
+  return str
+    .replace(/&quot;/gi,  '"')
+    .replace(/&apos;/gi, "'")
+    .replace(/&#039;/gi, "'")
+    .replace(/&amp;/gi,  '&')
+    .replace(/&lt;/gi,   '<')
+    .replace(/&gt;/gi,   '>');
+}
+
 function normalizeSong(raw) {
   if (!raw || raw.type !== 'song') return null;
 
@@ -94,19 +108,19 @@ function normalizeSong(raw) {
 
   return {
     id:                raw.id,
-    name:              raw.title,
+    name:              decodeHTML(raw.title),
     album: {
       id:  info.album_id  || '',
-      name: info.album    || '',
+      name: decodeHTML(info.album    || ''),
       url:  info.album_url || '',
     },
     year:              raw.year          || '',
     releaseDate:       info.release_date || '',
     duration:          parseInt(info.duration, 10) || 0,
-    label:             info.label        || '',
-    primaryArtists,
+    label:             decodeHTML(info.label        || ''),
+    primaryArtists:    decodeHTML(primaryArtists),
     primaryArtistsId:  (artists.primary_artists  || []).map((a) => a.id).join(','),
-    featuredArtists,
+    featuredArtists:   decodeHTML(featuredArtists),
     featuredArtistsId: (artists.featured_artists || []).map((a) => a.id).join(','),
     explicitContent:   raw.explicit_content === '1' || raw.explicit_content === 1,
     playCount:         parseInt(raw.play_count, 10) || 0,

@@ -47,6 +47,7 @@ const LyricsViewer: React.FC<LyricsViewerProps> = ({
   const [isTranslating, setIsTranslating] = useState<boolean>(false);
   const [translatedLines, setTranslatedLines] = useState<string[]>([]);
   const [isKaraokeMode, setIsKaraokeMode] = useState<boolean>(false);
+  const [syncOffset, setSyncOffset] = useState<number>(0); // seconds, adjustable by user
   const lyricsContainerRef = useRef<HTMLDivElement>(null);
   const currentLineRef = useRef<HTMLDivElement>(null);
 
@@ -58,6 +59,7 @@ const LyricsViewer: React.FC<LyricsViewerProps> = ({
       setCurrentLineIndex(-1);
       setTranslatedLines([]);
       setTransMode('off');
+      setSyncOffset(0); // reset offset when song changes
       return;
     }
     const fetchLyrics = async () => {
@@ -92,13 +94,15 @@ const LyricsViewer: React.FC<LyricsViewerProps> = ({
     fetchLyrics();
   }, [currentSong?.id, currentSong?.name]);
 
-  // Update current line based on audio time
+  // Update current line based on audio time + syncOffset
+  // syncOffset lets user manually correct desync for old/mismatched LRC files
   useEffect(() => {
     if (!isPlaying || parsedLines.length === 0) return;
 
+    const adjustedTime = currentTime + syncOffset;
     let newIndex = -1;
     for (let i = 0; i < parsedLines.length; i++) {
-      if (parsedLines[i].time <= currentTime) {
+      if (parsedLines[i].time <= adjustedTime) {
         newIndex = i;
       } else {
         break;
@@ -106,7 +110,7 @@ const LyricsViewer: React.FC<LyricsViewerProps> = ({
     }
 
     setCurrentLineIndex(newIndex);
-  }, [currentTime, isPlaying, parsedLines]);
+  }, [currentTime, isPlaying, parsedLines, syncOffset]);
 
   // Auto-scroll to current line
   useEffect(() => {
@@ -291,6 +295,43 @@ const LyricsViewer: React.FC<LyricsViewerProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Lyrics sync offset — lets user manually correct timing for old songs */}
+      {parsedLines.length > 0 && (
+        <div className="flex items-center justify-between px-4 py-1.5 bg-accent/30 border-b border-border">
+          <span className="text-[10px] text-muted-foreground font-medium">Lyrics sync</span>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setSyncOffset(v => Math.max(-10, parseFloat((v - 0.5).toFixed(1))))}
+              className="px-2 py-0.5 text-[10px] bg-muted hover:bg-accent rounded font-mono transition-colors"
+              title="Shift lyrics earlier by 0.5s"
+            >
+              ◀ -0.5s
+            </button>
+            <span className={`text-[10px] font-mono w-14 text-center font-bold ${
+              syncOffset !== 0 ? 'text-red-400' : 'text-muted-foreground'
+            }`}>
+              {syncOffset > 0 ? '+' : ''}{syncOffset.toFixed(1)}s
+            </span>
+            <button
+              onClick={() => setSyncOffset(v => Math.min(10, parseFloat((v + 0.5).toFixed(1))))}
+              className="px-2 py-0.5 text-[10px] bg-muted hover:bg-accent rounded font-mono transition-colors"
+              title="Shift lyrics later by 0.5s"
+            >
+              +0.5s ▶
+            </button>
+            {syncOffset !== 0 && (
+              <button
+                onClick={() => setSyncOffset(0)}
+                className="px-2 py-0.5 text-[10px] bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded font-medium transition-colors"
+                title="Reset sync offset"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Lyrics content */}
       <div

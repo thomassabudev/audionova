@@ -25,18 +25,35 @@ const PRESETS = [
   { id: 'acoustic', label: 'Acoustic 🪕', lowGain: 2, midGain: 3, highGain: 4 },
 ];
 
+const LS_KEY = 'audionovaEQ';
+
 const EqualizerPanel: React.FC = () => {
   const { audioProcessor, audioProcessingEnabled, setAudioProcessingEnabled } = useMusic();
 
-  const [selectedPreset, setSelectedPreset] = useState('flat');
-  const [gains, setGains] = useState({ lowGain: 0, midGain: 1, highGain: 0.5 });
+  // Read saved EQ from localStorage — same key used by EqualizerModal on desktop
+  // This ensures the sidebar EQ and the desktop EQ modal always start from the same values
+  const savedEQ = (() => {
+    try { return JSON.parse(localStorage.getItem(LS_KEY) || 'null'); } catch { return null; }
+  })();
+
+  const [selectedPreset, setSelectedPreset] = useState(savedEQ?.preset || 'flat');
+  const [gains, setGains] = useState({
+    lowGain:  savedEQ?.bass   ?? 0,   // default flat
+    midGain:  savedEQ?.mid    ?? 0,   // default flat (was wrongly 1 before)
+    highGain: savedEQ?.treble ?? 0,   // default flat (was wrongly 0.5 before)
+  });
   const [bypass, setBypass] = useState(false);
+
+  const saveToStorage = (preset: string, bass: number, mid: number, treble: number) => {
+    try { localStorage.setItem(LS_KEY, JSON.stringify({ preset, bass, mid, treble })); } catch { /* ignore */ }
+  };
 
   const handleGainChange = (key: EQBand['key'], value: number) => {
     setSelectedPreset('custom');
     const next = { ...gains, [key]: value };
     setGains(next);
     audioProcessor?.updateEQ(next);
+    saveToStorage('custom', next.lowGain, next.midGain, next.highGain);
   };
 
   const handleBypass = (val: boolean) => {
@@ -55,6 +72,7 @@ const EqualizerPanel: React.FC = () => {
     const next = { lowGain: preset.lowGain, midGain: preset.midGain, highGain: preset.highGain };
     setGains(next);
     audioProcessor?.updateEQ(next);
+    saveToStorage(preset.id, next.lowGain, next.midGain, next.highGain);
     if (bypass) setBypass(false);
     toast.success(`Equalizer set to ${preset.label}`);
   };

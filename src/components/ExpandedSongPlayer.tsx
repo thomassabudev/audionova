@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Play, Pause, SkipBack, SkipForward, Volume2, Music2, ListMusic, Sliders, Moon, Share2 } from 'lucide-react';
 import { Button } from './ui/button';
@@ -30,6 +30,9 @@ const ExpandedSongPlayer: React.FC<ExpandedSongPlayerProps> = ({ isOpen, onClose
   const [activeTab, setActiveTab] = useState<Tab>('player');
   const [isSleepModalOpen, setIsSleepModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
 
   const {
     currentSong,
@@ -150,7 +153,22 @@ const ExpandedSongPlayer: React.FC<ExpandedSongPlayerProps> = ({ isOpen, onClose
               {activeTab === 'player' && (
                 <div className="flex flex-col items-center justify-center h-full p-6 overflow-y-auto">
                   {/* Album art */}
-                  <div className="relative w-full max-w-xs aspect-square rounded-2xl overflow-hidden shadow-lg mb-6">
+                  <div 
+                    className="relative w-full max-w-xs aspect-square rounded-2xl overflow-hidden shadow-lg mb-6"
+                    onTouchStart={(e) => {
+                      touchStartX.current = e.touches[0].clientX;
+                      touchStartY.current = e.touches[0].clientY;
+                    }}
+                    onTouchEnd={(e) => {
+                      const deltaX = e.changedTouches[0].clientX - touchStartX.current;
+                      const deltaY = e.changedTouches[0].clientY - touchStartY.current;
+                      // Only trigger if horizontal swipe (not vertical scroll)
+                      if (Math.abs(deltaX) > 80 && Math.abs(deltaX) > Math.abs(deltaY) * 2) {
+                        if (deltaX < 0) playNext();       // swipe left -> next
+                        else playPrevious();              // swipe right -> previous
+                      }
+                    }}
+                  >
                     {getImageUrl() ? (
                       <img
                         src={getImageUrl()!}
