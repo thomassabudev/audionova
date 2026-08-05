@@ -20,14 +20,33 @@ const EQ_PRESETS = [
   { id: 'acoustic', label: 'Acoustic 🪕', low: 2, mid: 3, high: 4 },
 ];
 
+const LS_KEY = 'audionovaEQ';
+
 const EqualizerModal: React.FC<EqualizerModalProps> = ({ isOpen, onClose }) => {
   const { audioProcessor } = useMusic();
-  const [selectedPreset, setSelectedPreset] = useState('flat');
-  const [bassGain, setBassGain] = useState(0);
-  const [midGain, setMidGain] = useState(0);
-  const [trebleGain, setTrebleGain] = useState(0);
+
+  // Load saved EQ from localStorage (or default flat)
+  const savedEQ = (() => {
+    try { return JSON.parse(localStorage.getItem(LS_KEY) || 'null'); } catch { return null; }
+  })();
+
+  const [selectedPreset, setSelectedPreset] = useState(savedEQ?.preset || 'flat');
+  const [bassGain,   setBassGain]   = useState<number>(savedEQ?.bass   ?? 0);
+  const [midGain,    setMidGain]    = useState<number>(savedEQ?.mid    ?? 0);
+  const [trebleGain, setTrebleGain] = useState<number>(savedEQ?.treble ?? 0);
+
+  // Apply saved EQ to processor whenever modal opens (keeps audio in sync)
+  React.useEffect(() => {
+    if (isOpen && audioProcessor) {
+      audioProcessor.updateEQ({ lowGain: bassGain, midGain, highGain: trebleGain });
+    }
+  }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!isOpen) return null;
+
+  const saveToStorage = (preset: string, bass: number, mid: number, treble: number) => {
+    try { localStorage.setItem(LS_KEY, JSON.stringify({ preset, bass, mid, treble })); } catch { /* ignore */ }
+  };
 
   const applyPreset = (presetId: string) => {
     const preset = EQ_PRESETS.find(p => p.id === presetId);
@@ -41,19 +60,21 @@ const EqualizerModal: React.FC<EqualizerModalProps> = ({ isOpen, onClose }) => {
     if (audioProcessor) {
       audioProcessor.updateEQ({ lowGain: preset.low, midGain: preset.mid, highGain: preset.high });
     }
+    saveToStorage(presetId, preset.low, preset.mid, preset.high);
     toast.success(`Equalizer preset set to ${preset.label}`);
   };
 
   const handleCustomChange = (type: 'bass' | 'mid' | 'treble', val: number) => {
     setSelectedPreset('custom');
     let b = bassGain, m = midGain, t = trebleGain;
-    if (type === 'bass') { setBassGain(val); b = val; }
-    if (type === 'mid') { setMidGain(val); m = val; }
-    if (type === 'treble') { setTrebleGain(val); t = val; }
+    if (type === 'bass')   { setBassGain(val);   b = val; }
+    if (type === 'mid')    { setMidGain(val);     m = val; }
+    if (type === 'treble') { setTrebleGain(val);  t = val; }
 
     if (audioProcessor) {
       audioProcessor.updateEQ({ lowGain: b, midGain: m, highGain: t });
     }
+    saveToStorage('custom', b, m, t);
   };
 
   return (

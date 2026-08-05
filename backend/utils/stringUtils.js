@@ -136,9 +136,56 @@ function isMatch(detail, query, thresholds = {}) {
   return { match: true, scores };
 }
 
+/**
+ * Token-based Jaccard similarity between two strings.
+ * Splits each string into word tokens after normalization and computes
+ * intersection / union. Excellent for long-title matching where word
+ * order may differ or a few extra words are present.
+ */
+function tokenJaccardSimilarity(a, b) {
+  if (!a || !b) return 0;
+
+  const tokA = new Set(normalize(a).split(/\s+/).filter(t => t.length > 0));
+  const tokB = new Set(normalize(b).split(/\s+/).filter(t => t.length > 0));
+
+  if (tokA.size === 0 || tokB.size === 0) return 0;
+
+  let intersection = 0;
+  for (const t of tokA) {
+    if (tokB.has(t)) intersection++;
+  }
+
+  const union = tokA.size + tokB.size - intersection;
+  return union > 0 ? intersection / union : 0;
+}
+
+/**
+ * Combined similarity: length-aware weighted average of DL and Jaccard.
+ * - Short strings (< 8 normalized chars): DL 80% / Jaccard 20%
+ * - Longer strings                       : DL 55% / Jaccard 45%
+ *
+ * This gives the best of both worlds:
+ *   DL    — accurate for short titles, sensitive to character-level edits
+ *   Jaccard — robust for long titles, word-order independent
+ */
+function combinedSimilarity(a, b) {
+  if (!a || !b) return 0;
+
+  const dl      = similarity(a, b);
+  const jaccard = tokenJaccardSimilarity(a, b);
+
+  const minLen  = Math.min(normalize(a).length, normalize(b).length);
+  if (minLen < 8) {
+    return dl * 0.80 + jaccard * 0.20;
+  }
+  return dl * 0.55 + jaccard * 0.45;
+}
+
 module.exports = {
   normalize,
   similarity,
+  combinedSimilarity,
+  tokenJaccardSimilarity,
   isMatch,
   damerauLevenshteinDistance,
 };

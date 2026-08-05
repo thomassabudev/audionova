@@ -52,10 +52,10 @@ export class AudioProcessor {
         highGain: 0    // Neutral by default (removed +0.5dB coloration)
       },
       limiterSettings: {
-        threshold: -0.1, // Safety threshold just below 0dBFS
-        ratio: 20,       // Brick-wall ratio
-        attack: 0.003,   // Fast attack to catch peaks
-        release: 0.1     // Medium release
+        threshold: -2,   // 2 dB headroom before limiting kicks in
+        ratio: 6,        // Gentle limiting ratio (not brick-wall)
+        attack: 0.005,   // 5ms — fast enough for peaks, not harsh
+        release: 0.25    // 250ms — smooth release, prevents pumping
       },
       normalizationTarget: -20, // Conservative target
       ...config

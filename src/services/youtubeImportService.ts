@@ -59,16 +59,26 @@ export interface ImportProgress {
   unmatchedCount:number;
 }
 
+export interface ImportOptions {
+  skipKaraoke:      boolean; // Skip karaoke/cover/instrumental results (default: true)
+  removeDuplicates: boolean; // Remove songs with same JioSaavn ID (default: false)
+  strictMode:       boolean; // Raise confidence threshold to 70% (default: false)
+}
+
 export interface ImportResult {
-  playlistName:   string;
-  playlistId:     string;
-  total:          number;
-  matchedCount:   number;
-  unmatchedCount: number;
-  matched:        MatchedSong[];
-  unmatched:      UnmatchedSong[];
-  concurrencyUsed:number;
-  importedAt:     string;
+  playlistName:      string;
+  playlistId:        string;
+  originalTotal:     number;
+  total:             number;
+  matchedCount:      number;
+  unmatchedCount:    number;
+  duplicatesRemoved: number;
+  matched:           MatchedSong[];
+  unmatched:         UnmatchedSong[];
+  importOptions:     ImportOptions;
+  concurrencyUsed:   number;
+  searchLimit:       number;
+  importedAt:        string;
 }
 
 export interface RetryResult {
@@ -135,11 +145,12 @@ export async function startImport(
   importId: string,
   playlistId: string,
   playlistTitle: string,
-  token: string
+  token: string,
+  options?: Partial<ImportOptions>
 ): Promise<{ importId: string; status: string }> {
   const data = await apiFetch<{ importId: string; status: string; success: boolean }>(
     '/api/youtube-import/start',
-    { method: 'POST', body: JSON.stringify({ importId, playlistId, playlistTitle }) },
+    { method: 'POST', body: JSON.stringify({ importId, playlistId, playlistTitle, options }) },
     token
   );
   return { importId: data.importId, status: data.status };

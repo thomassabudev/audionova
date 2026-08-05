@@ -14,13 +14,13 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Youtube, Music2, Loader2, CheckCircle2, XCircle, RefreshCw, Play, List, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
+import { Youtube, Music2, Loader2, CheckCircle2, XCircle, RefreshCw, Play, List, ChevronDown, ChevronUp, AlertTriangle, Settings2, Shield, Copy, Zap } from 'lucide-react';
 import { Button } from './ui/button';
 import { useAuth } from '../context/AuthContext';
 import { useMusic } from '../context/MusicContext';
 import toast from 'react-hot-toast';
 import * as ytService from '../services/youtubeImportService';
-import type { YTPlaylist, ImportResult, ImportProgress } from '../services/youtubeImportService';
+import type { YTPlaylist, ImportResult, ImportProgress, ImportOptions } from '../services/youtubeImportService';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,10 +28,54 @@ type FlowState =
   | 'IDLE'
   | 'AUTH_REDIRECT'
   | 'PLAYLIST_SELECT'
+  | 'IMPORT_OPTIONS'
   | 'IMPORTING'
   | 'DONE'
   | 'RETRY'
   | 'ERROR';
+
+// ─── Import Options Toggle ────────────────────────────────────────────────────
+
+function OptionToggle({
+  icon,
+  label,
+  description,
+  checked,
+  onChange,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  description: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!checked)}
+      className={`w-full flex items-start gap-3 p-3 rounded-xl border transition-all text-left ${
+        checked
+          ? 'bg-white/8 border-white/20'
+          : 'bg-transparent border-white/5 opacity-60'
+      }`}
+    >
+      <div className={`mt-0.5 flex-shrink-0 transition-colors ${checked ? 'text-emerald-400' : 'text-white/30'}`}>
+        {icon}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-medium text-white leading-tight">{label}</p>
+        <p className="text-[10px] text-white/40 leading-tight mt-0.5">{description}</p>
+      </div>
+      <div className={`w-8 h-4 rounded-full flex-shrink-0 mt-1 transition-all relative ${
+        checked ? 'bg-emerald-500' : 'bg-white/10'
+      }`}>
+        <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${
+          checked ? 'right-0.5' : 'left-0.5'
+        }`} />
+      </div>
+    </button>
+  );
+}
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -112,9 +156,16 @@ const YouTubeImportFlow: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
   const [error, setError]                 = useState<string>('');
   const [showMatched, setShowMatched]     = useState(false);
   const [showUnmatched, setShowUnmatched] = useState(true);
-  const [selectingPl, setSelectingPl]     = useState<string | null>(null); // playlist id being selected
+  const [selectingPl, setSelectingPl]     = useState<string | null>(null);
   const [retryLoading, setRetryLoading]   = useState(false);
   const [playlistsLoading, setPlaylistsLoading] = useState(false);
+
+  // Import options state (IMPORT_OPTIONS state)
+  const [importOptions, setImportOptions] = useState<ImportOptions>({
+    skipKaraoke:      true,
+    removeDuplicates: false,
+    strictMode:       false,
+  });
 
   // ── Read importId from URL after OAuth callback ───────────────────────────
   useEffect(() => {
@@ -199,20 +250,24 @@ const YouTubeImportFlow: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
     }
   }, [getAuthToken]);
 
-  const handleSelectPlaylist = useCallback(async (playlist: YTPlaylist) => {
+  const handleSelectPlaylist = useCallback((playlist: YTPlaylist) => {
     if (!importId) return;
     setSelectedPl(playlist);
     setSelectingPl(playlist.id);
+    setFlowState('IMPORT_OPTIONS');
+    setSelectingPl(null);
+  }, [importId]);
 
+  const handleStartImport = useCallback(async () => {
+    if (!importId || !selectedPl) return;
     try {
       const token = await getAuthToken();
       if (!token) throw new Error('Not authenticated');
 
-      await ytService.startImport(importId, playlist.id, playlist.title, token);
+      await ytService.startImport(importId, selectedPl.id, selectedPl.title, token, importOptions);
       setFlowState('IMPORTING');
-      setProgress({ processed: 0, total: playlist.itemCount, matchedCount: 0, unmatchedCount: 0 });
+      setProgress({ processed: 0, total: selectedPl.itemCount, matchedCount: 0, unmatchedCount: 0 });
 
-      // Poll for completion
       const finalResult = await ytService.waitForCompletion(
         importId,
         token,
@@ -224,10 +279,8 @@ const YouTubeImportFlow: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
     } catch (err: any) {
       setError(err.message || 'Import failed');
       setFlowState('ERROR');
-    } finally {
-      setSelectingPl(null);
     }
-  }, [importId, getAuthToken]);
+  }, [importId, selectedPl, importOptions, getAuthToken]);
 
   const handlePlayResult = useCallback(() => {
     if (!result) return;
@@ -322,6 +375,7 @@ const YouTubeImportFlow: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
     setProgress({ processed: 0, total: 0, matchedCount: 0, unmatchedCount: 0 });
     setResult(null);
     setError('');
+    setImportOptions({ skipKaraoke: true, removeDuplicates: false, strictMode: false });
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -398,6 +452,59 @@ const YouTubeImportFlow: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
     );
   }
 
+  // IMPORT_OPTIONS
+  if (flowState === 'IMPORT_OPTIONS' && selectedPl) {
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Settings2 className="w-4 h-4 text-white/60" />
+          <span className="text-xs font-semibold text-white">Import Options</span>
+          <span className="ml-auto text-[10px] text-white/40 truncate max-w-[120px]">{selectedPl.title}</span>
+        </div>
+
+        <div className="space-y-1.5">
+          <OptionToggle
+            icon={<Shield className="w-3.5 h-3.5" />}
+            label="Skip karaoke, covers & instrumentals"
+            description="Rejects non-studio recordings from JioSaavn results"
+            checked={importOptions.skipKaraoke}
+            onChange={(v) => setImportOptions(o => ({ ...o, skipKaraoke: v }))}
+          />
+          <OptionToggle
+            icon={<Copy className="w-3.5 h-3.5" />}
+            label="Remove duplicate songs"
+            description="If the same JioSaavn song appears more than once, keep only the first"
+            checked={importOptions.removeDuplicates}
+            onChange={(v) => setImportOptions(o => ({ ...o, removeDuplicates: v }))}
+          />
+          <OptionToggle
+            icon={<Zap className="w-3.5 h-3.5" />}
+            label="Strict mode (high confidence only)"
+            description="Only import songs with 70%+ confidence — fewer imports, fewer mistakes"
+            checked={importOptions.strictMode}
+            onChange={(v) => setImportOptions(o => ({ ...o, strictMode: v }))}
+          />
+        </div>
+
+        <Button
+          type="button"
+          onClick={handleStartImport}
+          className="w-full bg-red-600 hover:bg-red-500 text-white text-xs flex items-center justify-center gap-2"
+        >
+          <Play className="w-3 h-3" />
+          Start Import ({selectedPl.itemCount} songs)
+        </Button>
+        <Button
+          variant="ghost" size="sm"
+          onClick={() => setFlowState('PLAYLIST_SELECT')}
+          className="w-full text-xs text-white/40"
+        >
+          ← Back
+        </Button>
+      </div>
+    );
+  }
+
   // IMPORTING
   if (flowState === 'IMPORTING') {
     const pct = progress.total > 0 ? Math.round((progress.processed / progress.total) * 100) : 0;
@@ -446,7 +553,9 @@ const YouTubeImportFlow: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
 
   // DONE
   if (flowState === 'DONE' && result) {
-    const successRate = result.total > 0 ? Math.round((result.matchedCount / result.total) * 100) : 0;
+    const successRate      = result.total > 0 ? Math.round((result.matchedCount / result.total) * 100) : 0;
+    const dupsRemoved      = result.duplicatesRemoved ?? 0;
+    const showDupes        = dupsRemoved > 0;
 
     return (
       <div className="space-y-4">
@@ -458,7 +567,7 @@ const YouTubeImportFlow: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
         </div>
 
         {/* Stats Row */}
-        <div className="grid grid-cols-3 gap-2">
+        <div className={`grid gap-2 ${showDupes ? 'grid-cols-4' : 'grid-cols-3'}`}>
           <div className="bg-white/5 rounded-lg p-2 text-center">
             <p className="text-white font-bold text-lg leading-tight">{result.total}</p>
             <p className="text-[10px] text-white/50">total</p>
@@ -471,6 +580,12 @@ const YouTubeImportFlow: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
             <p className="text-red-400 font-bold text-lg leading-tight">{result.unmatchedCount}</p>
             <p className="text-[10px] text-white/50">not found</p>
           </div>
+          {showDupes && (
+            <div className="bg-yellow-400/10 rounded-lg p-2 text-center">
+              <p className="text-yellow-400 font-bold text-lg leading-tight">{dupsRemoved}</p>
+              <p className="text-[10px] text-white/50">dupes off</p>
+            </div>
+          )}
         </div>
 
         {/* Action Buttons */}

@@ -153,8 +153,15 @@ router.post('/playlists', verifyUser, async (req, res) => {
 // Body: { importId, playlistId, playlistTitle }
 
 router.post('/start', verifyUser, async (req, res) => {
-  const { importId, playlistId, playlistTitle } = req.body;
+  const { importId, playlistId, playlistTitle, options: rawOptions } = req.body;
   const firebaseUid = req.user.uid;
+
+  // Sanitize import options — preserve source playlist by default (removeDuplicates OFF)
+  const importOptions = {
+    skipKaraoke:      rawOptions && rawOptions.skipKaraoke      === false ? false : true,
+    removeDuplicates: rawOptions && rawOptions.removeDuplicates === true  ? true  : false,
+    strictMode:       rawOptions && rawOptions.strictMode        === true  ? true  : false,
+  };
 
   if (!validateImportId(importId)) {
     return res.status(400).json({ success: false, error: 'Invalid importId' });
@@ -204,7 +211,7 @@ router.post('/start', verifyUser, async (req, res) => {
         }
 
         // Run matching
-        await importMatcher.importPlaylist(importId, accessToken, playlistId, playlistTitle || playlistId, ytItems);
+        await importMatcher.importPlaylist(importId, accessToken, playlistId, playlistTitle || playlistId, ytItems, importOptions);
       } catch (err) {
         console.error('[YT Import] Background import error:', err.message);
         await sessionStore.setError(importId, err.message);

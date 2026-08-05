@@ -1,32 +1,34 @@
-/**
+﻿/**
  * importMatcherService.js
  *
- * YouTube title → JioSaavn matching engine.
+ * YouTube title -> JioSaavn matching engine.
  *
- * For each YouTube playlist item:
- *   1. Clean the title (remove video suffixes)
- *   2. Extract likely artist from channelTitle
- *   3. Build up to 3 search queries (tiered by confidence)
- *   4. Score JioSaavn candidates (titleSim + artistSim + language bonus)
- *   5. Return matched result with confidence score, or unmatched with reason
+ * Improvements over v1:
+ *   - Centralized blacklist (word-boundary + phrase matching)
+ *   - Combined similarity: DL + Jaccard (length-aware weighting)
+ *   - 5 search tiers instead of 3
+ *   - VEVO/Official channel suffix stripping
+ *   - Configurable SEARCH_RESULT_LIMIT (env var, default 10)
+ *   - Optional output deduplication by JioSaavn song.id (user opt-in only)
+ *   - Strict mode threshold (0.70 instead of 0.55)
+ *   - Scorer split into separate stage functions for future extensibility
  *
- * Import never throws — every error is caught per-song.
- * Concurrency is controlled via IMPORT_CONCURRENCY env var (default: 5).
+ * Import never throws - every error is caught per-song.
  */
 
 const axios = require('axios');
-const { normalize, similarity } = require('../utils/stringUtils');
+const { normalize, similarity, combinedSimilarity } = require('../utils/stringUtils');
+const { isBlacklisted } = require('../utils/blacklistFilter');
 const sessionStore = require('./sessionStore');
 
-const CONCURRENCY  = parseInt(process.env.IMPORT_CONCURRENCY || '5', 10);
+const CONCURRENCY  = parseInt(process.env.IMPORT_CONCURRENCY  || '5',  10);
+const SEARCH_LIMIT = parseInt(process.env.SEARCH_RESULT_LIMIT || '10', 10);
 const JIOSAAVN_URL = `http://127.0.0.1:${process.env.PORT || 5009}/api/jiosaavn/search/songs`;
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// --- Constants ---
 
-// Regex: removes all parenthesized/bracketed content from YouTube titles
 const SUFFIX_REGEX = /[\(\[][^\)\]]*[\)\]]/g;
 
-// Known label/distributor channels — not the artist
 const LABEL_CHANNELS = new Set([
   't-series', 'sony music india', 'saregama music', 'speed records',
   'zee music company', 'tips music', 'ultra bollywood', 'aditya music',
@@ -34,230 +36,171 @@ const LABEL_CHANNELS = new Set([
   'eros now music', 'yrf music', 'dharma music', 'jio saavn',
 ]);
 
-// Minimum confidence threshold for a song to count as "matched" on first pass
+const CHANNEL_SUFFIX_REGEX = /\s*(vevo|official|music|records?|entertainment|india|channel)\s*$/i;
+
 const MATCH_THRESHOLD       = 0.55;
-// Lower threshold used during retry — user is explicitly asking for another attempt
 const RETRY_MATCH_THRESHOLD = 0.45;
+const STRICT_THRESHOLD      = 0.70;
 
-// ─── Title Cleaning ───────────────────────────────────────────────────────────
+// --- Title Cleaning ---
 
-/**
- * Remove video/music-specific suffixes from YouTube titles.
- * "Shape of You (Official Video)" → "Shape of You"
- */
 function cleanTitle(rawTitle) {
   if (!rawTitle) return '';
-
   let title = rawTitle;
-
-  // Remove parenthesized and bracketed content
   title = title.replace(SUFFIX_REGEX, '');
-
-  // Remove "ft." / "feat." inline mentions (keep before the pipe for artist extraction)
   title = title.replace(/\s+(ft\.|feat\.)\s+[^-|]+/gi, '');
-
-  // Remove common trailing noise words left without parens
   title = title.replace(/\b(official\s*(video|audio|music\s*video|lyric\s*video|visualizer|hd|4k))\b/gi, '');
   title = title.replace(/\b(lyrics?|hd|hq|4k|remastered?|remaster)\b/gi, '');
-
-  // Collapse whitespace
   title = title.replace(/\s+/g, ' ').trim();
-
-  // Remove trailing dash or pipe
-  title = title.replace(/[\-|–—]+$/, '').trim();
-
+  title = title.replace(/[\-|]+$/, '').trim();
   return title;
 }
 
-/**
- * Extract a likely artist name from a YouTube channelTitle.
- *
- * Rules:
- *  - "Arijit Singh - Topic" → "Arijit Singh"
- *  - Label channels (T-Series, etc.) → return '' (will not be used as artist)
- *  - Otherwise: return channelTitle as-is
- */
+// --- Artist Extraction ---
+
 function extractArtist(channelTitle) {
   if (!channelTitle) return '';
-
-  // Handle "Artist - Topic" channels (YouTube Music auto-generated)
   const topicMatch = channelTitle.match(/^(.+?)\s*-\s*Topic$/i);
   if (topicMatch) return topicMatch[1].trim();
-
-  // Check label/distributor blocklist
   if (LABEL_CHANNELS.has(channelTitle.toLowerCase())) return '';
-
-  return channelTitle;
+  return channelTitle.replace(CHANNEL_SUFFIX_REGEX, '').trim();
 }
 
-/**
- * If the YouTube title contains " - ", it's likely "Artist - Song Title".
- * Returns { artist, title } split, or null if pattern not found.
- */
 function splitArtistTitle(rawTitle) {
-  // Match "Artist Name - Song Title" but not "Song Title - Official Video"
-  const parts = rawTitle.split(/\s+[-–—]\s+/);
+  const parts = rawTitle.split(/\s+[-]+\s+/);
   if (parts.length >= 2) {
-    // Heuristic: first part is artist if it doesn't contain typical suffix words
     const firstPart = parts[0].trim();
     const isSuffixWord = /\b(official|audio|video|lyrics?|4k|hd|hq)\b/i.test(firstPart);
     if (!isSuffixWord) {
-      return {
-        artist: firstPart,
-        title:  parts.slice(1).join(' - ').trim(),
-      };
+      return { artist: firstPart, title: parts.slice(1).join(' - ').trim() };
     }
   }
   return null;
 }
 
-// ─── Query Building ───────────────────────────────────────────────────────────
+// --- Query Building (5 tiers) ---
 
-/**
- * Build up to 3 search queries in descending confidence order.
- * queryTier 1 = best, 3 = widest fallback
- */
 function buildSearchQueries(cleanedTitle, artist) {
   const queries = [];
+  const first4  = cleanedTitle.split(' ').slice(0, 4).join(' ');
 
-  // Tier 1: title + artist (most specific)
-  if (artist) {
-    queries.push({ query: `${cleanedTitle} ${artist}`, tier: 1 });
-  }
-
-  // Tier 2: title only
+  if (artist) queries.push({ query: `${cleanedTitle} ${artist}`, tier: 1 });
   queries.push({ query: cleanedTitle, tier: artist ? 2 : 1 });
-
-  // Tier 3: first 3 meaningful words of title (broad fallback)
-  const shortTitle = cleanedTitle.split(' ').slice(0, 3).join(' ');
-  if (shortTitle !== cleanedTitle && shortTitle.length > 3) {
-    queries.push({ query: shortTitle, tier: 3 });
-  }
+  if (artist && first4 !== cleanedTitle && first4.length > 3)
+    queries.push({ query: `${artist} ${first4}`, tier: 3 });
+  if (first4 !== cleanedTitle && first4.length > 3)
+    queries.push({ query: first4, tier: 4 });
+  if (artist && artist.length > 2)
+    queries.push({ query: artist, tier: 5 });
 
   return queries;
 }
 
-// ─── Scoring ──────────────────────────────────────────────────────────────────
+// --- Scoring pipeline ---
+// Each stage is a separate function so future scorers (phonetic, alias,
+// multilingual) can be added as new stages without touching existing ones.
 
-/**
- * Score a single JioSaavn candidate against the cleaned YouTube title and artist.
- * Returns a confidence score between 0 and 1.
- *
- * Weights:
- *   Title similarity : 0.60
- *   Artist similarity: 0.35
- *   Language bonus   : 0.05
- */
-function scoreCandidate(jioSong, cleanedTitle, artist) {
-  const jioTitle  = jioSong.name || '';
-  const jioArtist = jioSong.primaryArtists || '';
+function computeTitleScore(cleanedTitle, jioTitle) {
+  return combinedSimilarity(cleanedTitle, jioTitle);
+}
 
-  const titleSim  = similarity(cleanedTitle, jioTitle);
-  const artistSim = artist ? similarity(artist, jioArtist) : 0.5; // neutral if no artist
+function computeArtistScore(artist, jioArtist) {
+  if (!artist) return 0.5;
+  return similarity(artist, jioArtist);
+}
 
-  // Disqualify if title similarity is too low
-  if (titleSim < 0.40) return { score: 0, titleSim, artistSim };
-
-  let score = (titleSim * 0.60) + (artistSim * 0.35);
-
-  // Small language bonus: if song is non-english, slight boost (non-English titles tend to be harder)
+function applyBonuses(baseScore, jioSong) {
+  let score = baseScore;
   const lang = (jioSong.language || '').toLowerCase();
   if (lang && lang !== 'english') score += 0.05;
-
-  // Penalty for compilation albums
-  const albumName = (jioSong.album?.name || '').toLowerCase();
+  const albumName = (jioSong.album ? jioSong.album.name || '' : '').toLowerCase();
   const compilationWords = ['best of', 'top songs', 'greatest hits', 'playlist', 'collection'];
-  if (compilationWords.some(w => albumName.includes(w))) score -= 0.10;
-
-  return { score: Math.min(score, 1), titleSim, artistSim };
+  if (compilationWords.some(function(w) { return albumName.indexOf(w) !== -1; })) score -= 0.10;
+  return Math.min(score, 1);
 }
 
-// ─── JioSaavn search ─────────────────────────────────────────────────────────
+function scoreCandidate(jioSong, cleanedTitle, artist, skipKaraoke) {
+  var jioTitle  = jioSong.name           || '';
+  var jioArtist = jioSong.primaryArtists || '';
 
-/**
- * Search JioSaavn for a query string.
- * Calls our local jiosaavn-proxy — no self-HTTP, this is an internal require.
- * Falls back to HTTP if direct call unavailable.
- */
-let _searchJioSaavn;
-try {
-  // Direct function call — avoids self-HTTP, uses cache from jiosaavn-proxy.js
-  const proxyModule = require('../routes/jiosaavn-proxy');
-  // The proxy module exports a router, not the raw function — use HTTP call instead
-  _searchJioSaavn = null;
-} catch (e) {
-  _searchJioSaavn = null;
+  // Stage 0: Blacklist - hard reject before any computation
+  if (skipKaraoke && isBlacklisted(jioTitle)) {
+    return { score: 0, titleSim: 0, artistSim: 0, blacklisted: true };
+  }
+
+  var titleSim = computeTitleScore(cleanedTitle, jioTitle);
+  if (titleSim < 0.40) return { score: 0, titleSim: titleSim, artistSim: 0, blacklisted: false };
+
+  var artistSim = computeArtistScore(artist, jioArtist);
+  var baseScore = (titleSim * 0.60) + (artistSim * 0.35);
+  var score     = applyBonuses(baseScore, jioSong);
+
+  return { score: score, titleSim: titleSim, artistSim: artistSim, blacklisted: false };
 }
+
+// --- JioSaavn search ---
 
 async function searchJioSaavn(query) {
   try {
     const response = await axios.get(JIOSAAVN_URL, {
-      params: { query, limit: 5 },
+      params: { query: query, limit: SEARCH_LIMIT },
       timeout: 10000,
     });
-    return response.data?.data?.results || [];
+    return (response.data && response.data.data && response.data.data.results) || [];
   } catch (err) {
-    // Single retry after 1 second
-    await new Promise(r => setTimeout(r, 1000));
+    await new Promise(function(r) { setTimeout(r, 1000); });
     try {
       const response = await axios.get(JIOSAAVN_URL, {
-        params: { query, limit: 5 },
+        params: { query: query, limit: SEARCH_LIMIT },
         timeout: 10000,
       });
-      return response.data?.data?.results || [];
-    } catch {
+      return (response.data && response.data.data && response.data.data.results) || [];
+    } catch (e) {
       return [];
     }
   }
 }
 
-// ─── Core matcher ─────────────────────────────────────────────────────────────
+// --- Core matcher ---
 
-/**
- * Match one YouTube playlist item to a JioSaavn song.
- *
- * @param {{ title, channelTitle, videoId, position }} ytItem
- * @param {{ threshold?: number }} options
- * @returns {{ type: 'matched'|'unmatched', ... }}
- */
-async function matchItem(ytItem, options = {}) {
-  const threshold = options.threshold ?? MATCH_THRESHOLD;
+async function matchItem(ytItem, options) {
+  options = options || {};
+  var skipKaraoke = options.skipKaraoke !== false;
+  var threshold   = options.strictMode
+    ? STRICT_THRESHOLD
+    : (options.threshold != null ? options.threshold : MATCH_THRESHOLD);
 
-  // Try to split "Artist - Song" pattern from raw title
-  const splitResult = splitArtistTitle(ytItem.title);
-  const rawForClean = splitResult ? splitResult.title : ytItem.title;
-  const splitArtist = splitResult ? splitResult.artist : null;
+  var splitResult  = splitArtistTitle(ytItem.title);
+  var rawForClean  = splitResult ? splitResult.title : ytItem.title;
+  var splitArtist  = splitResult ? splitResult.artist : null;
+  var cleanedTitle = cleanTitle(rawForClean);
+  var artist       = splitArtist || extractArtist(ytItem.channelTitle);
+  var queries      = buildSearchQueries(cleanedTitle, artist);
 
-  const cleanedTitle = cleanTitle(rawForClean);
-  const artist       = splitArtist || extractArtist(ytItem.channelTitle);
+  var bestScore     = 0;
+  var bestCandidate = null;
+  var bestTitleSim  = 0;
+  var bestArtistSim = 0;
+  var bestQuery     = '';
+  var bestTier      = 0;
 
-  const queries = buildSearchQueries(cleanedTitle, artist);
-
-  let bestScore     = 0;
-  let bestCandidate = null;
-  let bestTitleSim  = 0;
-  let bestArtistSim = 0;
-  let bestQuery     = '';
-  let bestTier      = 0;
-
-  for (const { query, tier } of queries) {
-    const candidates = await searchJioSaavn(query);
+  for (var qi = 0; qi < queries.length; qi++) {
+    var q          = queries[qi];
+    var candidates = await searchJioSaavn(q.query);
     if (!candidates.length) continue;
 
-    for (const candidate of candidates) {
-      const { score, titleSim, artistSim } = scoreCandidate(candidate, cleanedTitle, artist);
-      if (score > bestScore) {
-        bestScore     = score;
-        bestCandidate = candidate;
-        bestTitleSim  = titleSim;
-        bestArtistSim = artistSim;
-        bestQuery     = query;
-        bestTier      = tier;
+    for (var ci = 0; ci < candidates.length; ci++) {
+      var result = scoreCandidate(candidates[ci], cleanedTitle, artist, skipKaraoke);
+      if (result.score > bestScore) {
+        bestScore     = result.score;
+        bestCandidate = candidates[ci];
+        bestTitleSim  = result.titleSim;
+        bestArtistSim = result.artistSim;
+        bestQuery     = q.query;
+        bestTier      = q.tier;
       }
     }
-
-    // If we already found a very confident match on tier 1, skip lower tiers
-    if (bestScore >= 0.85 && tier === 1) break;
+    if (bestScore >= 0.85 && q.tier <= 2) break;
   }
 
   if (bestScore >= threshold && bestCandidate) {
@@ -287,140 +230,154 @@ async function matchItem(ytItem, options = {}) {
   };
 }
 
-// ─── Concurrent pool ──────────────────────────────────────────────────────────
+// --- Concurrent pool ---
 
-/**
- * Process an array of items through matchItem() with a concurrency pool.
- *
- * @param {Array} items        YouTube playlist items
- * @param {Function} onProgress  Called after each item: (processed, total, matchedCount, unmatchedCount)
- * @param {object} options     { threshold }
- * @returns {{ matched, unmatched }}
- */
-async function processWithConcurrency(items, onProgress, options = {}) {
-  const matched   = [];
-  const unmatched = [];
-  let processed   = 0;
-  const total     = items.length;
+async function processWithConcurrency(items, onProgress, options) {
+  options = options || {};
+  var matched   = [];
+  var unmatched = [];
+  var processed = 0;
+  var total     = items.length;
 
-  // Process in batches of CONCURRENCY
-  for (let i = 0; i < total; i += CONCURRENCY) {
-    const batch = items.slice(i, i + CONCURRENCY);
-
-    const results = await Promise.allSettled(
-      batch.map(item => matchItem(item, options))
+  for (var i = 0; i < total; i += CONCURRENCY) {
+    var batch   = items.slice(i, i + CONCURRENCY);
+    var results = await Promise.allSettled(
+      batch.map(function(item) { return matchItem(item, options); })
     );
 
-    for (const result of results) {
-      if (result.status === 'fulfilled') {
-        if (result.value.type === 'matched') {
-          matched.push(result.value);
+    for (var ri = 0; ri < results.length; ri++) {
+      var res = results[ri];
+      if (res.status === 'fulfilled') {
+        if (res.value.type === 'matched') {
+          matched.push(res.value);
         } else {
-          unmatched.push(result.value);
+          unmatched.push(res.value);
         }
       } else {
-        // Promise itself rejected (should not happen — matchItem catches internally)
-        console.error('[ImportMatcher] Unexpected rejection:', result.reason);
+        console.error('[ImportMatcher] Unexpected rejection:', res.reason);
         unmatched.push({
-          type:  'unmatched',
-          title: '(unknown)',
-          artist:'(unknown)',
-          reason:'error',
-          bestScore: 0,
-          error: result.reason?.message || 'Unknown error',
+          type: 'unmatched', title: '(unknown)', artist: '(unknown)',
+          reason: 'error', bestScore: 0,
+          error: (res.reason && res.reason.message) || 'Unknown error',
         });
       }
       processed++;
     }
 
-    if (onProgress) {
-      onProgress(processed, total, matched.length, unmatched.length);
+    if (onProgress) onProgress(processed, total, matched.length, unmatched.length);
+  }
+
+  return { matched: matched, unmatched: unmatched };
+}
+
+// --- Output deduplication (opt-in only) ---
+
+function deduplicateOutput(matched) {
+  var seen = new Set();
+  var dedupedMatched    = [];
+  var duplicatesRemoved = 0;
+
+  for (var i = 0; i < matched.length; i++) {
+    var item   = matched[i];
+    var songId = item.song && item.song.id;
+    if (songId && seen.has(songId)) {
+      duplicatesRemoved++;
+    } else {
+      if (songId) seen.add(songId);
+      dedupedMatched.push(item);
     }
   }
 
-  return { matched, unmatched };
+  return { dedupedMatched: dedupedMatched, duplicatesRemoved: duplicatesRemoved };
 }
 
-// ─── Public API ───────────────────────────────────────────────────────────────
+// --- Public API ---
 
-/**
- * Run a full import job.
- *
- * @param {string} importId
- * @param {string} accessToken
- * @param {string} playlistId
- * @param {string} playlistTitle
- * @param {Array}  ytItems        Pre-fetched YouTube playlist items
- * @returns {object}              Full ImportResult
- */
-async function importPlaylist(importId, accessToken, playlistId, playlistTitle, ytItems) {
-  const total = ytItems.length;
+async function importPlaylist(importId, accessToken, playlistId, playlistTitle, ytItems, importOptions) {
+  importOptions = importOptions || {};
+  var options = {
+    skipKaraoke:      importOptions.skipKaraoke      !== false,
+    removeDuplicates: importOptions.removeDuplicates === true,
+    strictMode:       importOptions.strictMode        === true,
+  };
+
+  var originalTotal = ytItems.length;
 
   await sessionStore.updateSession(importId, {
     status: 'running',
-    progress: { processed: 0, total, matchedCount: 0, unmatchedCount: 0 },
+    progress: { processed: 0, total: originalTotal, matchedCount: 0, unmatchedCount: 0 },
   });
 
-  const { matched, unmatched } = await processWithConcurrency(
+  var matchResult = await processWithConcurrency(
     ytItems,
-    async (processed, total, matchedCount, unmatchedCount) => {
-      // Throttle progress writes — update every 10 items to reduce DB chatter
+    async function(processed, total, matchedCount, unmatchedCount) {
       if (processed % 10 === 0 || processed === total) {
         await sessionStore.updateSession(importId, {
-          progress: { processed, total, matchedCount, unmatchedCount },
+          progress: { processed: processed, total: total, matchedCount: matchedCount, unmatchedCount: unmatchedCount },
         });
       }
-    }
+    },
+    options
   );
 
-  const finalResult = {
-    playlistName:   playlistTitle,
-    playlistId,
-    total,
-    matchedCount:   matched.length,
-    unmatchedCount: unmatched.length,
-    matched,
-    unmatched,
-    concurrencyUsed: CONCURRENCY,
-    importedAt:     new Date().toISOString(),
+  var matched   = matchResult.matched;
+  var unmatched = matchResult.unmatched;
+
+  var duplicatesRemoved = 0;
+  if (options.removeDuplicates) {
+    var deduped       = deduplicateOutput(matched);
+    matched           = deduped.dedupedMatched;
+    duplicatesRemoved = deduped.duplicatesRemoved;
+  }
+
+  var finalResult = {
+    playlistName:     playlistTitle,
+    playlistId:       playlistId,
+    originalTotal:    originalTotal,
+    total:            originalTotal,
+    matchedCount:     matched.length,
+    unmatchedCount:   unmatched.length,
+    duplicatesRemoved:duplicatesRemoved,
+    matched:          matched,
+    unmatched:        unmatched,
+    importOptions:    options,
+    concurrencyUsed:  CONCURRENCY,
+    searchLimit:      SEARCH_LIMIT,
+    importedAt:       new Date().toISOString(),
   };
 
   await sessionStore.setResult(importId, finalResult);
 
-  console.log(`[ImportMatcher] ✅ Import complete | Total: ${total} | Matched: ${matched.length} | Unmatched: ${unmatched.length}`);
+  console.log(
+    '[ImportMatcher] Done | Total: ' + originalTotal +
+    ' | Matched: ' + matched.length +
+    ' | Unmatched: ' + unmatched.length +
+    ' | Dupes: ' + duplicatesRemoved +
+    ' | skipKaraoke: ' + options.skipKaraoke +
+    ' | strict: ' + options.strictMode
+  );
 
   return finalResult;
 }
 
-/**
- * Retry unmatched items from a previous import.
- * Uses alternate search strategies and a lower confidence threshold.
- *
- * @param {string} importId
- * @param {Array}  unmatchedItems  From ImportSession.result.unmatched
- * @returns {{ newlyMatched, stillUnmatched, retriedCount, newMatchCount }}
- */
 async function retryUnmatched(importId, unmatchedItems) {
-  console.log(`[ImportMatcher] 🔄 Retrying ${unmatchedItems.length} unmatched items (threshold: ${RETRY_MATCH_THRESHOLD})`);
+  console.log('[ImportMatcher] Retrying ' + unmatchedItems.length + ' items (threshold: ' + RETRY_MATCH_THRESHOLD + ')');
 
-  // Convert stored unmatched objects back to ytItem-compatible shape for matchItem
-  const retryItems = unmatchedItems.map(u => ({
-    title:        u.title,
-    channelTitle: u.artist,
-    videoId:      u.videoId || '',
-    position:     0,
-  }));
+  var retryItems = unmatchedItems.map(function(u) {
+    return { title: u.title, channelTitle: u.artist, videoId: u.videoId || '', position: 0 };
+  });
 
-  const { matched: newlyMatched, unmatched: stillUnmatched } =
-    await processWithConcurrency(retryItems, null, { threshold: RETRY_MATCH_THRESHOLD });
+  var retryResult = await processWithConcurrency(retryItems, null, {
+    threshold: RETRY_MATCH_THRESHOLD, skipKaraoke: true,
+  });
 
-  console.log(`[ImportMatcher] 🔄 Retry complete | Newly matched: ${newlyMatched.length} | Still unmatched: ${stillUnmatched.length}`);
+  console.log('[ImportMatcher] Retry done | New: ' + retryResult.matched.length + ' | Still unmatched: ' + retryResult.unmatched.length);
 
   return {
-    newlyMatched,
-    stillUnmatched,
+    newlyMatched:  retryResult.matched,
+    stillUnmatched:retryResult.unmatched,
     retriedCount:  unmatchedItems.length,
-    newMatchCount: newlyMatched.length,
+    newMatchCount: retryResult.matched.length,
   };
 }
 
@@ -429,7 +386,10 @@ module.exports = {
   retryUnmatched,
   cleanTitle,
   extractArtist,
+  scoreCandidate,
   MATCH_THRESHOLD,
   RETRY_MATCH_THRESHOLD,
+  STRICT_THRESHOLD,
   CONCURRENCY,
+  SEARCH_LIMIT,
 };
