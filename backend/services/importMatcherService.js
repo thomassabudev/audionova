@@ -1,19 +1,26 @@
-﻿/**
+/**
  * importMatcherService.js
  *
  * YouTube title -> JioSaavn matching engine.
  *
- * Improvements over v1:
- *   - Centralized blacklist (word-boundary + phrase matching)
- *   - Combined similarity: DL + Jaccard (length-aware weighting)
- *   - 5 search tiers instead of 3
- *   - VEVO/Official channel suffix stripping
- *   - Configurable SEARCH_RESULT_LIMIT (env var, default 10)
- *   - Optional output deduplication by JioSaavn song.id (user opt-in only)
- *   - Strict mode threshold (0.70 instead of 0.55)
- *   - Scorer split into separate stage functions for future extensibility
+ * v3 Improvements (Solutions A + B + F):
  *
- * Import never throws - every error is caught per-song.
+ *   Solution A - Artist Veto Rule:
+ *     If the artist IS known and artist similarity < 0.35 (clearly wrong artist),
+ *     the match is rejected regardless of title score.
+ *     Prevents: "Espresso (Sabrina Carpenter)" -> Hindi "Espresso" false positive.
+ *
+ *   Solution B - Tier-Weighted Threshold:
+ *     Broader search tiers require higher confidence before accepting a match.
+ *     Tier 0/1 (specific): 0.55 base | Tier 2 (title-only): +0.10 | Tier 3: +0.13
+ *     Tier 4: +0.17 | Tier 5 (artist-only): +0.20
+ *     Prevents: title-only matches from passing at the base threshold.
+ *
+ *   Solution F - Movie/Album Hint Extraction (Tier 0):
+ *     Extracts movie/album name from brackets in the raw YouTube title BEFORE cleaning.
+ *     Creates a Tier 0 search: "SongTitle MovieName" (most specific possible).
+ *     Fixes: "Kaattuchembakam (Pallichattambi Movie Song)" -> searches
+ *            "Kaattuchembakam Pallichattambi" and picks the correct 2023 version.
  */
 
 const axios = require('axios');
@@ -38,15 +45,28 @@ const LABEL_CHANNELS = new Set([
 
 const CHANNEL_SUFFIX_REGEX = /\s*(vevo|official|music|records?|entertainment|india|channel)\s*$/i;
 
+// Words inside brackets that indicate metadata, NOT a movie/album name
+const BRACKET_NOISE_REGEX = /\b(official|audio|video|lyrics?|hd|hq|4k|full|song|songs|music|movie|ft|feat|from|with|by|version|vevo|topic|trailer|teaser|promo|animation|lyric|visualizer|full\s*song|full\s*video)\b/gi;
+
 const MATCH_THRESHOLD       = 0.55;
 const RETRY_MATCH_THRESHOLD = 0.45;
 const STRICT_THRESHOLD      = 0.70;
+
+// --- Solution B: Tier-weighted thresholds ---
+// Broader tiers need higher confidence to accept a match.
+// Prevents songs-not-on-JioSaavn from being matched via wide fallback searches.
+const TIER_PENALTIES = { 0: 0, 1: 0, 2: 0.10, 3: 0.13, 4: 0.17, 5: 0.20 };
+
+function getTierThreshold(tier, baseThreshold) {
+  var penalty = TIER_PENALTIES[tier] !== undefined ? TIER_PENALTIES[tier] : 0.20;
+  return Math.min(baseThreshold + penalty, 0.95);
+}
 
 // --- Title Cleaning ---
 
 function cleanTitle(rawTitle) {
   if (!rawTitle) return '';
-  let title = rawTitle;
+  var title = rawTitle;
   title = title.replace(SUFFIX_REGEX, '');
   title = title.replace(/\s+(ft\.|feat\.)\s+[^-|]+/gi, '');
   title = title.replace(/\b(official\s*(video|audio|music\s*video|lyric\s*video|visualizer|hd|4k))\b/gi, '');
@@ -56,21 +76,42 @@ function cleanTitle(rawTitle) {
   return title;
 }
 
+// --- Solution F: Movie/Album Hint Extraction ---
+// Reads bracketed content from the RAW YouTube title before cleaning strips it.
+// Returns the movie/album name if found, or null if brackets only contain metadata.
+
+function extractAlbumHint(rawTitle) {
+  if (!rawTitle) return null;
+  var matches = rawTitle.match(/[\(\[](.*?)[\)\]]/g);
+  if (!matches) return null;
+
+  for (var i = 0; i < matches.length; i++) {
+    var content = matches[i].slice(1, -1).trim();
+    // Remove noise words (Official, Video, HD, Song, etc.)
+    var cleaned = content.replace(BRACKET_NOISE_REGEX, '').replace(/\s+/g, ' ').trim();
+    // Must be at least 3 chars and not only digits/symbols
+    if (cleaned.length >= 3 && !/^[\d\s\-_]+$/.test(cleaned)) {
+      return cleaned;
+    }
+  }
+  return null;
+}
+
 // --- Artist Extraction ---
 
 function extractArtist(channelTitle) {
   if (!channelTitle) return '';
-  const topicMatch = channelTitle.match(/^(.+?)\s*-\s*Topic$/i);
+  var topicMatch = channelTitle.match(/^(.+?)\s*-\s*Topic$/i);
   if (topicMatch) return topicMatch[1].trim();
   if (LABEL_CHANNELS.has(channelTitle.toLowerCase())) return '';
   return channelTitle.replace(CHANNEL_SUFFIX_REGEX, '').trim();
 }
 
 function splitArtistTitle(rawTitle) {
-  const parts = rawTitle.split(/\s+[-]+\s+/);
+  var parts = rawTitle.split(/\s+[-]+\s+/);
   if (parts.length >= 2) {
-    const firstPart = parts[0].trim();
-    const isSuffixWord = /\b(official|audio|video|lyrics?|4k|hd|hq)\b/i.test(firstPart);
+    var firstPart = parts[0].trim();
+    var isSuffixWord = /\b(official|audio|video|lyrics?|4k|hd|hq)\b/i.test(firstPart);
     if (!isSuffixWord) {
       return { artist: firstPart, title: parts.slice(1).join(' - ').trim() };
     }
@@ -78,16 +119,27 @@ function splitArtistTitle(rawTitle) {
   return null;
 }
 
-// --- Query Building (5 tiers) ---
+// --- Query Building (Tier 0-5) ---
+// Tier 0: title + movie/album hint (NEW - most specific, only when hint found)
+// Tier 1: title + artist
+// Tier 2: title only
+// Tier 3: artist + first 4 words
+// Tier 4: first 4 words only
+// Tier 5: artist only (last resort)
 
-function buildSearchQueries(cleanedTitle, artist) {
-  const queries = [];
-  const first4  = cleanedTitle.split(' ').slice(0, 4).join(' ');
+function buildSearchQueries(cleanedTitle, artist, albumHint) {
+  var queries = [];
+  var first4  = cleanedTitle.split(' ').slice(0, 4).join(' ');
 
-  if (artist) queries.push({ query: `${cleanedTitle} ${artist}`, tier: 1 });
+  // Tier 0: movie/album specific (Solution F)
+  if (albumHint) {
+    queries.push({ query: (cleanedTitle + ' ' + albumHint).trim(), tier: 0 });
+  }
+
+  if (artist) queries.push({ query: cleanedTitle + ' ' + artist, tier: 1 });
   queries.push({ query: cleanedTitle, tier: artist ? 2 : 1 });
   if (artist && first4 !== cleanedTitle && first4.length > 3)
-    queries.push({ query: `${artist} ${first4}`, tier: 3 });
+    queries.push({ query: artist + ' ' + first4, tier: 3 });
   if (first4 !== cleanedTitle && first4.length > 3)
     queries.push({ query: first4, tier: 4 });
   if (artist && artist.length > 2)
@@ -97,24 +149,24 @@ function buildSearchQueries(cleanedTitle, artist) {
 }
 
 // --- Scoring pipeline ---
-// Each stage is a separate function so future scorers (phonetic, alias,
-// multilingual) can be added as new stages without touching existing ones.
+// Stage functions are separate so future scorers (phonetic, alias,
+// multilingual) can be added without touching existing stages.
 
 function computeTitleScore(cleanedTitle, jioTitle) {
   return combinedSimilarity(cleanedTitle, jioTitle);
 }
 
 function computeArtistScore(artist, jioArtist) {
-  if (!artist) return 0.5;
+  if (!artist) return 0.5; // neutral - unknown artist
   return similarity(artist, jioArtist);
 }
 
 function applyBonuses(baseScore, jioSong) {
-  let score = baseScore;
-  const lang = (jioSong.language || '').toLowerCase();
+  var score = baseScore;
+  var lang = (jioSong.language || '').toLowerCase();
   if (lang && lang !== 'english') score += 0.05;
-  const albumName = (jioSong.album ? jioSong.album.name || '' : '').toLowerCase();
-  const compilationWords = ['best of', 'top songs', 'greatest hits', 'playlist', 'collection'];
+  var albumName = (jioSong.album ? jioSong.album.name || '' : '').toLowerCase();
+  var compilationWords = ['best of', 'top songs', 'greatest hits', 'playlist', 'collection'];
   if (compilationWords.some(function(w) { return albumName.indexOf(w) !== -1; })) score -= 0.10;
   return Math.min(score, 1);
 }
@@ -132,6 +184,15 @@ function scoreCandidate(jioSong, cleanedTitle, artist, skipKaraoke) {
   if (titleSim < 0.40) return { score: 0, titleSim: titleSim, artistSim: 0, blacklisted: false };
 
   var artistSim = computeArtistScore(artist, jioArtist);
+
+  // Solution A: Artist Veto Rule
+  // If the artist IS known and is clearly different (< 0.35 similarity),
+  // the title match alone is not enough - reject to avoid false positives.
+  // This prevents "Espresso (Sabrina Carpenter)" from matching a Hindi "Espresso".
+  if (artist && artistSim < 0.35) {
+    return { score: 0, titleSim: titleSim, artistSim: artistSim, blacklisted: false };
+  }
+
   var baseScore = (titleSim * 0.60) + (artistSim * 0.35);
   var score     = applyBonuses(baseScore, jioSong);
 
@@ -142,7 +203,7 @@ function scoreCandidate(jioSong, cleanedTitle, artist, skipKaraoke) {
 
 async function searchJioSaavn(query) {
   try {
-    const response = await axios.get(JIOSAAVN_URL, {
+    var response = await axios.get(JIOSAAVN_URL, {
       params: { query: query, limit: SEARCH_LIMIT },
       timeout: 10000,
     });
@@ -150,11 +211,11 @@ async function searchJioSaavn(query) {
   } catch (err) {
     await new Promise(function(r) { setTimeout(r, 1000); });
     try {
-      const response = await axios.get(JIOSAAVN_URL, {
+      var response2 = await axios.get(JIOSAAVN_URL, {
         params: { query: query, limit: SEARCH_LIMIT },
         timeout: 10000,
       });
-      return (response.data && response.data.data && response.data.data.results) || [];
+      return (response2.data && response2.data.data && response2.data.data.results) || [];
     } catch (e) {
       return [];
     }
@@ -166,52 +227,77 @@ async function searchJioSaavn(query) {
 async function matchItem(ytItem, options) {
   options = options || {};
   var skipKaraoke = options.skipKaraoke !== false;
-  var threshold   = options.strictMode
+  var baseThreshold = options.strictMode
     ? STRICT_THRESHOLD
     : (options.threshold != null ? options.threshold : MATCH_THRESHOLD);
+
+  // Solution F: Extract movie/album hint from raw title BEFORE cleaning strips it
+  var albumHint    = extractAlbumHint(ytItem.title);
 
   var splitResult  = splitArtistTitle(ytItem.title);
   var rawForClean  = splitResult ? splitResult.title : ytItem.title;
   var splitArtist  = splitResult ? splitResult.artist : null;
   var cleanedTitle = cleanTitle(rawForClean);
   var artist       = splitArtist || extractArtist(ytItem.channelTitle);
-  var queries      = buildSearchQueries(cleanedTitle, artist);
+  var queries      = buildSearchQueries(cleanedTitle, artist, albumHint);
 
-  var bestScore     = 0;
-  var bestCandidate = null;
-  var bestTitleSim  = 0;
-  var bestArtistSim = 0;
-  var bestQuery     = '';
-  var bestTier      = 0;
+  // Solution B: Per-tier threshold - track best VALID match (one that passed its tier's threshold)
+  var bestValidScore     = 0;
+  var bestValidCandidate = null;
+  var bestValidTitleSim  = 0;
+  var bestValidArtistSim = 0;
+  var bestValidQuery     = '';
+  var bestValidTier      = 0;
+  var globalBestScore    = 0; // raw best score across all tiers (for unmatched reporting)
 
   for (var qi = 0; qi < queries.length; qi++) {
-    var q          = queries[qi];
-    var candidates = await searchJioSaavn(q.query);
+    var q             = queries[qi];
+    var tierThreshold = getTierThreshold(q.tier, baseThreshold);
+    var candidates    = await searchJioSaavn(q.query);
     if (!candidates.length) continue;
+
+    var tierBestScore     = 0;
+    var tierBestCandidate = null;
+    var tierBestTitleSim  = 0;
+    var tierBestArtistSim = 0;
 
     for (var ci = 0; ci < candidates.length; ci++) {
       var result = scoreCandidate(candidates[ci], cleanedTitle, artist, skipKaraoke);
-      if (result.score > bestScore) {
-        bestScore     = result.score;
-        bestCandidate = candidates[ci];
-        bestTitleSim  = result.titleSim;
-        bestArtistSim = result.artistSim;
-        bestQuery     = q.query;
-        bestTier      = q.tier;
+      if (result.score > tierBestScore) {
+        tierBestScore     = result.score;
+        tierBestCandidate = candidates[ci];
+        tierBestTitleSim  = result.titleSim;
+        tierBestArtistSim = result.artistSim;
       }
     }
-    if (bestScore >= 0.85 && q.tier <= 2) break;
+
+    // Track raw best for unmatched reason reporting
+    if (tierBestScore > globalBestScore) globalBestScore = tierBestScore;
+
+    // Solution B: This tier's best must meet its own (higher) threshold
+    if (tierBestScore >= tierThreshold && tierBestCandidate) {
+      if (tierBestScore > bestValidScore) {
+        bestValidScore     = tierBestScore;
+        bestValidCandidate = tierBestCandidate;
+        bestValidTitleSim  = tierBestTitleSim;
+        bestValidArtistSim = tierBestArtistSim;
+        bestValidQuery     = q.query;
+        bestValidTier      = q.tier;
+      }
+      // Very high confidence on early specific tier - stop searching
+      if (bestValidScore >= 0.85 && q.tier <= 2) break;
+    }
   }
 
-  if (bestScore >= threshold && bestCandidate) {
+  if (bestValidCandidate) {
     return {
       type:       'matched',
-      song:       bestCandidate,
-      confidence: parseFloat(bestScore.toFixed(4)),
-      titleSim:   parseFloat(bestTitleSim.toFixed(4)),
-      artistSim:  parseFloat(bestArtistSim.toFixed(4)),
-      queryUsed:  bestQuery,
-      queryTier:  bestTier,
+      song:       bestValidCandidate,
+      confidence: parseFloat(bestValidScore.toFixed(4)),
+      titleSim:   parseFloat(bestValidTitleSim.toFixed(4)),
+      artistSim:  parseFloat(bestValidArtistSim.toFixed(4)),
+      queryUsed:  bestValidQuery,
+      queryTier:  bestValidTier,
       ytTitle:    ytItem.title,
       ytChannel:  ytItem.channelTitle,
       videoId:    ytItem.videoId,
@@ -224,8 +310,8 @@ async function matchItem(ytItem, options) {
     artist:     ytItem.channelTitle,
     cleanTitle: cleanedTitle,
     videoId:    ytItem.videoId,
-    reason:     bestScore > 0 ? 'low_confidence' : 'no_match',
-    bestScore:  parseFloat(bestScore.toFixed(4)),
+    reason:     globalBestScore > 0 ? 'low_confidence' : 'no_match',
+    bestScore:  parseFloat(globalBestScore.toFixed(4)),
     error:      null,
   };
 }
@@ -386,7 +472,9 @@ module.exports = {
   retryUnmatched,
   cleanTitle,
   extractArtist,
+  extractAlbumHint,
   scoreCandidate,
+  getTierThreshold,
   MATCH_THRESHOLD,
   RETRY_MATCH_THRESHOLD,
   STRICT_THRESHOLD,
