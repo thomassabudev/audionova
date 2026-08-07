@@ -365,16 +365,10 @@ async function matchItem(ytItem, options) {
   var bestValidTier      = 0;
   var globalBestScore    = 0; // raw best score across all tiers (for unmatched reporting)
 
-  var debugLog = []; // DEBUG: collect info for unmatched songs
-
   for (var qi = 0; qi < queries.length; qi++) {
     var q             = queries[qi];
     var tierThreshold = getTierThreshold(q.tier, baseThreshold);
     var candidates    = await searchJioSaavn(q.query);
-
-    // DEBUG: log query result count
-    debugLog.push('  Q' + qi + '[tier' + q.tier + '] "' + q.query + '" → ' + candidates.length + ' results');
-
     if (!candidates.length) continue;
 
     var tierBestScore     = 0;
@@ -390,11 +384,6 @@ async function matchItem(ytItem, options) {
         tierBestTitleSim  = result.titleSim;
         tierBestArtistSim = result.artistSim;
       }
-    }
-
-    // DEBUG: log best candidate for this tier
-    if (tierBestCandidate) {
-      debugLog.push('    Best: "' + tierBestCandidate.name + '" by "' + tierBestCandidate.primaryArtists + '" → score=' + tierBestScore.toFixed(2) + ' (titleSim=' + tierBestTitleSim.toFixed(2) + ' artistSim=' + tierBestArtistSim.toFixed(2) + ') threshold=' + tierThreshold.toFixed(2));
     }
 
     // Track raw best for unmatched reason reporting
@@ -429,10 +418,6 @@ async function matchItem(ytItem, options) {
       videoId:    ytItem.videoId,
     };
   }
-
-  // DEBUG: print full trace for unmatched songs
-  console.log('[DEBUG UNMATCHED] "' + ytItem.title + '" | channel="' + ytItem.channelTitle + '" | cleanedTitle="' + cleanedTitle + '" | artist="' + artist + '"');
-  debugLog.forEach(function(line) { console.log(line); });
 
   return {
     type:       'unmatched',
