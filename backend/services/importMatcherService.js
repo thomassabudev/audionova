@@ -37,15 +37,21 @@ const JIOSAAVN_URL = `http://127.0.0.1:${process.env.PORT || 5009}/api/jiosaavn/
 const SUFFIX_REGEX = /[\(\[][^\)\]]*[\)\]]/g;
 
 const LABEL_CHANNELS = new Set([
+  // Hindi / Pan-India
   't-series', 'sony music india', 'saregama music', 'speed records',
   'zee music company', 'tips music', 'ultra bollywood', 'aditya music',
-  'lahari music', 'think music india', 'venus music', 'universal music india',
   'eros now music', 'yrf music', 'dharma music', 'jio saavn',
+  'universal music india', 'venus music', 'desi music factory',
+  // South Indian labels
+  'sony music south', 'think music india', 'think music',
+  'lahari music', 'aditya music', 'saregama south',
+  'anand audio', 'audio compass', 'super good films',
+  'kv music', 'magicbox', 'musicbox',
 ]);
 
 const CHANNEL_SUFFIX_REGEX = /\s*(vevo|official|music|records?|entertainment|india|channel)\s*$/i;
 
-const GENERIC_CHANNEL_REGEX = /\b(music|songs|records|audios|entertainment|company|movies|cinemas|studios|series|television|network|media|digital)\b/i;
+const GENERIC_CHANNEL_REGEX = /\b(music|songs|records|audios|entertainment|company|movies|cinemas|studios|series|television|network|media|digital|lofi|lo.fi|unplugged|acoustic|playlist|jukebox|beats|mashup|bgm|covers?)\b/i;
 
 // Words inside brackets that indicate metadata, NOT a movie/album name
 const BRACKET_NOISE_REGEX = /\b(official|audio|video|lyrics?|hd|hq|4k|full|song|songs|music|movie|ft|feat|from|with|by|version|vevo|topic|trailer|teaser|promo|animation|lyric|visualizer|full\s*song|full\s*video)\b/gi;
@@ -235,7 +241,8 @@ function computeTitleScore(cleanedTitle, jioTitle) {
 }
 
 function computeArtistScore(artist, jioArtist) {
-  if (!artist) return 0.5; // neutral - unknown artist
+  if (!artist)    return 0.5; // neutral - YouTube channel is a label, artist unknown
+  if (!jioArtist) return 0.5; // neutral - JioSaavn has no artist metadata for this song
   return similarity(artist, jioArtist);
 }
 
