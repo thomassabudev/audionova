@@ -45,6 +45,8 @@ const LABEL_CHANNELS = new Set([
 
 const CHANNEL_SUFFIX_REGEX = /\s*(vevo|official|music|records?|entertainment|india|channel)\s*$/i;
 
+const GENERIC_CHANNEL_REGEX = /\b(music|songs|records|audios|entertainment|company|movies|cinemas|studios|series|television|network|media|digital)\b/i;
+
 // Words inside brackets that indicate metadata, NOT a movie/album name
 const BRACKET_NOISE_REGEX = /\b(official|audio|video|lyrics?|hd|hq|4k|full|song|songs|music|movie|ft|feat|from|with|by|version|vevo|topic|trailer|teaser|promo|animation|lyric|visualizer|full\s*song|full\s*video)\b/gi;
 
@@ -104,6 +106,7 @@ function extractArtist(channelTitle) {
   var topicMatch = channelTitle.match(/^(.+?)\s*-\s*Topic$/i);
   if (topicMatch) return topicMatch[1].trim();
   if (LABEL_CHANNELS.has(channelTitle.toLowerCase())) return '';
+  if (GENERIC_CHANNEL_REGEX.test(channelTitle)) return '';
   return channelTitle.replace(CHANNEL_SUFFIX_REGEX, '').trim();
 }
 
@@ -155,6 +158,9 @@ function splitArtistTitle(rawTitle, channelTitle) {
   // T-Series, YRF Music, Zee Music etc. use PIPE/PAREN formats, never A-T.
   // Returning null lets the caller use extractArtist() which returns '' for labels.
   if (channelTitle && LABEL_CHANNELS.has(channelTitle.toLowerCase())) {
+    return null;
+  }
+  if (channelTitle && GENERIC_CHANNEL_REGEX.test(channelTitle)) {
     return null;
   }
 
