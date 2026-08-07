@@ -97,6 +97,8 @@ function extractAlbumHint(rawTitle) {
     var content = matches[i].slice(1, -1).trim();
     // Remove noise words (Official, Video, HD, Song, etc.)
     var cleaned = content.replace(BRACKET_NOISE_REGEX, '').replace(/\s+/g, ' ').trim();
+    // Strip surrounding quote characters (e.g. `"Param Sundari"` → `Param Sundari`)
+    cleaned = cleaned.replace(/^["'\u201c\u201d]+|["'\u201c\u201d]+$/g, '').trim();
     // Must be at least 3 chars and not only digits/symbols
     if (cleaned.length >= 3 && !/^[\d\s\-_]+$/.test(cleaned)) {
       return cleaned;
@@ -341,6 +343,17 @@ async function matchItem(ytItem, options) {
   }
 
   var artist       = splitArtist || extractArtist(ytItem.channelTitle);
+
+  // ── Composer-channel fix ────────────────────────────────────────────────────
+  // YouTube auto-generates "Artist - Topic" channels for music composers, not singers.
+  // For Indian film songs: YouTube Topic = Composer (Jakes Bejoy, Harris Jayaraj…)
+  //                        JioSaavn primaryArtists = Singer (Sid Sriram, Naresh Iyer…)
+  // If we use the composer name in the Artist Veto, it always fires and rejects correct results.
+  // Fix: use the composer name ONLY for search queries (to narrow down results),
+  //       but treat artist as NEUTRAL (empty) during candidate scoring.
+  var isTopicChannel = ytItem.channelTitle && /\s*-\s*Topic$/i.test(ytItem.channelTitle);
+  var scoringArtist  = isTopicChannel ? '' : artist;
+
   var queries      = buildSearchQueries(cleanedTitle, artist, albumHint);
 
   // Solution B: Per-tier threshold - track best VALID match (one that passed its tier's threshold)
@@ -370,7 +383,7 @@ async function matchItem(ytItem, options) {
     var tierBestArtistSim = 0;
 
     for (var ci = 0; ci < candidates.length; ci++) {
-      var result = scoreCandidate(candidates[ci], cleanedTitle, artist, skipKaraoke);
+      var result = scoreCandidate(candidates[ci], cleanedTitle, scoringArtist, skipKaraoke);
       if (result.score > tierBestScore) {
         tierBestScore     = result.score;
         tierBestCandidate = candidates[ci];
