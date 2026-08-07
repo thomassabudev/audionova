@@ -29,7 +29,7 @@ const { isBlacklisted } = require('../utils/blacklistFilter');
 const sessionStore = require('./sessionStore');
 
 const CONCURRENCY  = parseInt(process.env.IMPORT_CONCURRENCY  || '5',  10);
-const SEARCH_LIMIT = parseInt(process.env.SEARCH_RESULT_LIMIT || '10', 10);
+const SEARCH_LIMIT = parseInt(process.env.SEARCH_RESULT_LIMIT || '20', 10);
 const JIOSAAVN_URL = `http://127.0.0.1:${process.env.PORT || 5009}/api/jiosaavn/search/songs`;
 
 // --- Constants ---
@@ -55,7 +55,7 @@ const STRICT_THRESHOLD      = 0.70;
 // --- Solution B: Tier-weighted thresholds ---
 // Broader tiers need higher confidence to accept a match.
 // Prevents songs-not-on-JioSaavn from being matched via wide fallback searches.
-const TIER_PENALTIES = { 0: 0, 1: 0, 2: 0.10, 3: 0.13, 4: 0.17, 5: 0.20 };
+const TIER_PENALTIES = { 0: 0, 1: 0, 2: 0.05, 3: 0.13, 4: 0.17, 5: 0.20 };
 
 function getTierThreshold(tier, baseThreshold) {
   var penalty = TIER_PENALTIES[tier] !== undefined ? TIER_PENALTIES[tier] : 0.20;
@@ -107,15 +107,87 @@ function extractArtist(channelTitle) {
   return channelTitle.replace(CHANNEL_SUFFIX_REGEX, '').trim();
 }
 
-function splitArtistTitle(rawTitle) {
+// --- Channel-anchored direction detection (v4) ---
+//
+// Problem: Both "Artist - Title" (A-T) and "Title - Artist" (T-A) formats are
+// common on YouTube. The old heuristic always assumed A-T, which was wrong for
+// 60% of real-world playlist titles (lyric channels, fan uploads, user playlists).
+//
+// Solution: Use channelTitle as a disambiguation anchor.
+//
+//   Step 1  Topic channel   → always A-T (YouTube auto-generates these)
+//   Step 2  Label channel   → PIPE/PAREN format; skip split entirely
+//   Step 3  Channel ≈ parts[0]  → A-T ("Artist - Title")
+//   Step 4  Channel ≈ parts[-1] → T-A ("Title - Artist")
+//   Step 5  Fallback        → return null; caller uses full title + channel artist
+//
+// "Matches" uses prefix-comparison so "Artist ft. Collaborator" parts are
+// handled correctly when channelTitle is just "Artist".
+
+function channelMatchesPart(channelNorm, partNorm) {
+  if (!channelNorm || channelNorm.length < 2) return false;
+  if (partNorm === channelNorm) return true;
+  // Prefix match: handles "Artist ft. Collaborator" appended in part
+  if (partNorm.startsWith(channelNorm + ' ')) return true;
+  // Fuzzy prefix: compare first N words of part with channel (N = channel word count)
+  var channelWords = channelNorm.split(' ').length;
+  var partPrefix   = partNorm.split(' ').slice(0, channelWords).join(' ');
+  return partPrefix.length > 0 && similarity(channelNorm, partPrefix) >= 0.85;
+}
+
+function splitArtistTitle(rawTitle, channelTitle) {
   var parts = rawTitle.split(/\s+[-]+\s+/);
-  if (parts.length >= 2) {
-    var firstPart = parts[0].trim();
-    var isSuffixWord = /\b(official|audio|video|lyrics?|4k|hd|hq)\b/i.test(firstPart);
-    if (!isSuffixWord) {
-      return { artist: firstPart, title: parts.slice(1).join(' - ').trim() };
+  if (parts.length < 2) return null;
+
+  var firstPart = parts[0].trim();
+  var lastPart  = parts[parts.length - 1].trim();
+
+  // Hard guard: metadata word in parts[0] means it is not an artist name
+  if (/\b(official|audio|video|lyrics?|4k|hd|hq)\b/i.test(firstPart)) return null;
+
+  // ── Step 1: YouTube Topic channel ──────────────────────────────────────────
+  // YouTube auto-generates these channels and their titles are always A-T.
+  if (channelTitle && /\s*-\s*Topic$/i.test(channelTitle)) {
+    return { artist: firstPart, title: parts.slice(1).join(' - ').trim() };
+  }
+
+  // ── Step 2: Known label channel ────────────────────────────────────────────
+  // T-Series, YRF Music, Zee Music etc. use PIPE/PAREN formats, never A-T.
+  // Returning null lets the caller use extractArtist() which returns '' for labels.
+  if (channelTitle && LABEL_CHANNELS.has(channelTitle.toLowerCase())) {
+    return null;
+  }
+
+  // ── Steps 3 & 4: Match channel name against dash-separated parts ───────────
+  if (channelTitle) {
+    var cleanChannel = channelTitle.replace(CHANNEL_SUFFIX_REGEX, '').trim();
+    if (cleanChannel.length >= 2) {
+      var normChannel = normalize(cleanChannel);
+      var normFirst   = normalize(firstPart);
+      var normLast    = normalize(lastPart);
+
+      var firstIsArtist = channelMatchesPart(normChannel, normFirst);
+      var lastIsArtist  = channelMatchesPart(normChannel, normLast);
+
+      // Step 3: Channel ≈ parts[0] → A-T ("Artist - Title")
+      if (firstIsArtist && !lastIsArtist) {
+        return { artist: firstPart, title: parts.slice(1).join(' - ').trim() };
+      }
+
+      // Step 4: Channel ≈ parts[-1] → T-A ("Title - Artist")
+      if (lastIsArtist && !firstIsArtist) {
+        return { artist: lastPart, title: parts.slice(0, -1).join(' - ').trim() };
+      }
+
+      // Both sides match (e.g. artist name == song name): prefer A-T
+      if (firstIsArtist && lastIsArtist) {
+        return { artist: firstPart, title: parts.slice(1).join(' - ').trim() };
+      }
     }
   }
+
+  // ── Step 5: Fallback — format cannot be reliably determined ───────────────
+  // Return null so the caller uses the full raw title and channel-based artist.
   return null;
 }
 
@@ -234,10 +306,27 @@ async function matchItem(ytItem, options) {
   // Solution F: Extract movie/album hint from raw title BEFORE cleaning strips it
   var albumHint    = extractAlbumHint(ytItem.title);
 
-  var splitResult  = splitArtistTitle(ytItem.title);
+  // Channel-anchored split: pass channelTitle so the function can determine
+  // whether the format is "Artist - Title" (A-T) or "Title - Artist" (T-A).
+  var splitResult  = splitArtistTitle(ytItem.title, ytItem.channelTitle);
   var rawForClean  = splitResult ? splitResult.title : ytItem.title;
   var splitArtist  = splitResult ? splitResult.artist : null;
   var cleanedTitle = cleanTitle(rawForClean);
+
+  // Fallback: when no split was determined (Step 5) and a " - " separator exists,
+  // use parts[0] as cleanedTitle for *scoring* accuracy. Without this, the full
+  // title (e.g. "Attention - Charlie Puth") would be compared against JioSaavn
+  // song names (e.g. "Attention") and score too low to pass the threshold.
+  if (!splitResult) {
+    var fallbackParts = ytItem.title.split(/\s+[-]+\s+/);
+    if (fallbackParts.length >= 2) {
+      var shortClean = cleanTitle(fallbackParts[0]);
+      if (shortClean.length >= 2 && shortClean.length < cleanedTitle.length) {
+        cleanedTitle = shortClean;
+      }
+    }
+  }
+
   var artist       = splitArtist || extractArtist(ytItem.channelTitle);
   var queries      = buildSearchQueries(cleanedTitle, artist, albumHint);
 
